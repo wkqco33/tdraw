@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # git describe 를 위해 전체 히스토리 필요
+
+      - name: Go 설치
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: 의존성 다운로드
+        run: go mod download
+
+      - name: 테스트
+        run: make test
+
+      - name: 크로스 플랫폼 빌드
+        run: make release
+
+      - name: GitHub Release 생성 및 바이너리 업로드
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
