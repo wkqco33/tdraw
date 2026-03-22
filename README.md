@@ -4,35 +4,38 @@
 
 Unicode half-block(`▀`)과 ANSI 24-bit 컬러를 이용해 터미널에 이미지를 출력한다.
 
+CLI로 직접 사용하거나, Go 라이브러리로 임포트해 사용할 수 있다.
+
 ## 렌더링 방식
 
 - `▀` 문자 1개 = 픽셀 2개 (상단: foreground 색, 하단: background 색)
 - ANSI truecolor (`ESC[38;2;R;G;Bm`) 사용으로 색상 그대로 표현
 - 터미널 크기를 자동 감지해 비율 유지 리사이즈
 
-## 설치
+## CLI 설치
 
 ```bash
-git clone <repo>
+go install github.com/wkqco/tdraw/cmd/tdraw@latest
+```
+
+또는 소스에서 빌드:
+
+```bash
+git clone https://github.com/wkqco/tdraw
 cd tdraw
-go build -o tdraw .
+make build
 ```
 
-또는 직접 실행:
+## CLI 사용법
+
 ```bash
-go run . photo.jpg
-```
-
-## 사용법
-
-```
 tdraw [옵션] <이미지파일> [이미지파일...]
 ```
 
 ### 옵션
 
 | 옵션 | 기본값 | 설명 |
-|------|--------|------|
+| ---- | ------ | ---- |
 | `-w int` | 터미널 너비 | 출력 너비 (열 수) |
 | `-color string` | `truecolor` | 컬러 모드: `truecolor` \| `256` \| `gray` |
 | `-version` | - | 버전 출력 |
@@ -56,6 +59,60 @@ tdraw *.jpg
 tdraw -color 256 photo.jpg
 ```
 
+## 라이브러리 사용법
+
+```bash
+go get github.com/wkqco/tdraw
+```
+
+### API
+
+```go
+import "github.com/wkqco/tdraw"
+
+// 파일 경로로 렌더링
+err := tdraw.DrawFile(os.Stdout, "photo.jpg", tdraw.Options{
+    Width:     80,
+    ColorMode: tdraw.TrueColor,
+})
+
+// image.Image로 렌더링
+tdraw.Draw(os.Stdout, img, tdraw.Options{})
+
+// 터미널 크기 조회
+cols, rows := tdraw.TermSize()
+```
+
+### Options
+
+| 필드 | 타입 | 기본값 | 설명 |
+| ---- | ------ | -------- | ------ |
+| `Width` | `int` | 터미널 너비 자동 감지 | 0이면 자동 |
+| `Height` | `int` | `Width * 4` | 0이면 자동 (비율 유지) |
+| `ColorMode` | `ColorMode` | `TrueColor` | `TrueColor` \| `Color256` \| `Gray` |
+
+### 구현 예시
+
+```go
+package main
+
+import (
+    "os"
+    "github.com/wkqco/tdraw"
+)
+
+func main() {
+    // 터미널 너비 자동 감지, TrueColor
+    tdraw.DrawFile(os.Stdout, "photo.jpg", tdraw.Options{})
+
+    // 너비 고정, 256색
+    tdraw.DrawFile(os.Stdout, "photo.jpg", tdraw.Options{
+        Width:     60,
+        ColorMode: tdraw.Color256,
+    })
+}
+```
+
 ## 지원 포맷
 
 - JPEG, PNG, GIF (첫 프레임), WebP, BMP
@@ -63,10 +120,10 @@ tdraw -color 256 photo.jpg
 ## 컬러 모드
 
 | 모드 | 설명 | 적합한 환경 |
-|------|------|-------------|
-| `truecolor` | 24-bit RGB, 1677만 색 | 최신 터미널 (iTerm2, Windows Terminal 등) |
-| `256` | ANSI 256색 팔레트 | 구형 터미널, tmux 기본 설정 |
-| `gray` | 회색조 | 색상 미지원 환경 |
+| ---- | ------ | ------------- |
+| `truecolor` / `TrueColor` | 24-bit RGB, 1677만 색 | 최신 터미널 (iTerm2, Windows Terminal 등) |
+| `256` / `Color256` | ANSI 256색 팔레트 | 구형 터미널, tmux 기본 설정 |
+| `gray` / `Gray` | 회색조 | 색상 미지원 환경 |
 
 ## 알고리즘 및 기술적 특징
 

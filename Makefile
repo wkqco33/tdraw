@@ -23,7 +23,7 @@ all: build
 
 ## build: 현재 플랫폼용 바이너리 빌드
 build:
-	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BIN) .
+	$(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/tdraw
 
 ## test: 테스트 실행
 test:
@@ -45,7 +45,7 @@ release: clean-dist
 		$(eval ARCH := $(word 2,$(subst /, ,$(platform)))) \
 		$(eval OUT  := $(DISTDIR)/$(BIN)_$(OS)_$(ARCH)$(if $(filter windows,$(OS)),.exe,)) \
 		echo "빌드: $(OUT)" && \
-		GOOS=$(OS) GOARCH=$(ARCH) $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(OUT) . && \
+		GOOS=$(OS) GOARCH=$(ARCH) $(GO) build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $(OUT) ./cmd/tdraw && \
 	) true
 	@echo "완료: $(DISTDIR)/"
 	@ls -lh $(DISTDIR)/

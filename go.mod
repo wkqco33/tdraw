@@ -1,4 +1,4 @@
-module tdraw
+module github.com/wkqco/tdraw
 
 go 1.25.8
 
