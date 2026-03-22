@@ -6,12 +6,6 @@ Unicode half-block(`▀`)과 ANSI 24-bit 컬러를 이용해 터미널에 이미
 
 CLI로 직접 사용하거나, Go 라이브러리로 임포트해 사용할 수 있다.
 
-## 렌더링 방식
-
-- `▀` 문자 1개 = 픽셀 2개 (상단: foreground 색, 하단: background 색)
-- ANSI truecolor (`ESC[38;2;R;G;Bm`) 사용으로 색상 그대로 표현
-- 터미널 크기를 자동 감지해 비율 유지 리사이즈
-
 ## CLI 설치
 
 ```bash
@@ -135,7 +129,7 @@ func main() {
 - `▀` (U+2580) 문자의 **background** 색 → 하단 픽셀
 - 이미지를 세로 2줄씩 읽어 한 문자에 압축하므로, 출력 높이 = 이미지 높이 ÷ 2
 
-```
+```bash
 픽셀 행 0  →  ▀ (foreground)
 픽셀 행 1  →  ▀ (background)
 픽셀 행 2  →  ▀ (foreground)
@@ -147,7 +141,7 @@ func main() {
 
 출력 너비와 터미널 높이를 목표 크기로 삼아 **가로·세로 독립 배율**을 계산한 뒤 작은 쪽을 선택한다.
 
-```
+```bash
 scaleW = targetW / srcW
 scaleH = targetH / srcH
 scale  = min(scaleW, scaleH)   ← 이미지가 넘치지 않도록 작은 배율 사용
@@ -159,25 +153,28 @@ scale  = min(scaleW, scaleH)   ← 이미지가 넘치지 않도록 작은 배�
 ### 컬러 모드 구현
 
 #### Truecolor (24-bit RGB)
+
 ANSI 이스케이프 시퀀스로 1,677만 색을 그대로 표현한다.
 
-```
+```bash
 ESC[38;2;R;G;Bm   ← foreground (상단 픽셀)
 ESC[48;2;R;G;Bm   ← background (하단 픽셀)
 ```
 
 #### 256색 모드
+
 ANSI 256색 팔레트의 6×6×6 컬러 큐브(인덱스 16–231)에 매핑한다.
 
-```
+```bash
 index = 16 + 36×r_i + 6×g_i + b_i
 r_i   = R × 5 / 255   (0–5 범위로 양자화)
 ```
 
 #### 회색조 모드
+
 **ITU-R BT.601** 휘도 공식으로 인간의 색 인식 가중치를 반영한다.
 
-```
+```bash
 Y = (299×R + 587×G + 114×B) / 1000
 ```
 
