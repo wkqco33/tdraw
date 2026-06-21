@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"image"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 
@@ -47,20 +50,32 @@ func main() {
 	// (세로는 스크롤 가능하므로 제한 없이 품질 우선)
 	targetH := cols * 4
 
+	// Ctrl+C로 GIF 애니메이션 재생을 중단할 수 있도록 시그널 컨텍스트 사용
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
 	exitCode := 0
 	for i, path := range args {
 		if i > 0 {
 			fmt.Println()
 		}
-		if err := showImage(path, targetW, targetH, mode); err != nil {
+		if err := showImage(ctx, path, targetW, targetH, mode); err != nil {
 			fmt.Fprintf(os.Stderr, "오류 [%s]: %v\n", filepath.Base(path), err)
 			exitCode = 1
+		}
+		if ctx.Err() != nil {
+			break // Ctrl+C로 중단됨
 		}
 	}
 	os.Exit(exitCode)
 }
 
-func showImage(path string, targetW, targetH int, mode render.ColorMode) error {
+func showImage(ctx context.Context, path string, targetW, targetH int, mode render.ColorMode) error {
+	// GIF는 애니메이션으로 재생
+	if strings.ToLower(filepath.Ext(path)) == ".gif" {
+		return showGIF(ctx, path, targetW, targetH, mode)
+	}
+
 	info, err := imgutil.Load(path)
 	if err != nil {
 		return err
@@ -77,6 +92,30 @@ func showImage(path string, targetW, targetH int, mode render.ColorMode) error {
 	)
 
 	render.Render(os.Stdout, resized, mode)
+	return nil
+}
+
+func showGIF(ctx context.Context, path string, targetW, targetH int, mode render.ColorMode) error {
+	anim, err := imgutil.LoadGIF(path)
+	if err != nil {
+		return err
+	}
+
+	// 모든 프레임을 동일한 크기로 리사이즈 (캔버스 크기가 같으므로 결과도 동일)
+	frames := make([]image.Image, len(anim.Frames))
+	for i, f := range anim.Frames {
+		frames[i] = imgutil.Resize(f, targetW, targetH)
+	}
+	rb := frames[0].Bounds()
+
+	fmt.Printf("🎬 %s  [GIF]  원본: %dx%d  출력: %dx%d  프레임: %d  (Ctrl+C로 종료)\n",
+		filepath.Base(path),
+		anim.Width, anim.Height,
+		rb.Dx(), rb.Dy()/2,
+		len(frames),
+	)
+
+	render.PlayGIF(ctx, os.Stdout, frames, anim.Delays, mode)
 	return nil
 }
 

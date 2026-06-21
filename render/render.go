@@ -1,12 +1,14 @@
 package render
 
 import (
+	"context"
 	"fmt"
 	"image"
 	"image/color"
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"golang.org/x/term"
 )
@@ -31,6 +33,12 @@ func TermSize() (cols, rows int) {
 // Render는 img를 터미널에 half-block 방식으로 출력한다.
 // img의 높이는 반드시 짝수여야 한다.
 func Render(w io.Writer, img image.Image, mode ColorMode) {
+	fmt.Fprint(w, RenderString(img, mode))
+}
+
+// RenderString은 img를 half-block 방식으로 변환한 문자열을 반환한다.
+// 행 수만큼 \n으로 끝나며, 애니메이션 재생 시 프레임을 미리 캐싱하는 데 쓴다.
+func RenderString(img image.Image, mode ColorMode) string {
 	bounds := img.Bounds()
 	width := bounds.Dx()
 	height := bounds.Dy()
@@ -55,7 +63,43 @@ func Render(w io.Writer, img image.Image, mode ColorMode) {
 		sb.WriteString("\033[0m\n")
 	}
 
-	fmt.Fprint(w, sb.String())
+	return sb.String()
+}
+
+// PlayGIF는 합성된 프레임들을 커서 이동 기반으로 무한 반복 재생한다.
+// 프레임은 모두 동일한 크기여야 하며, ctx가 취소되면(Ctrl+C 등) 재생을 멈춘다.
+func PlayGIF(ctx context.Context, w io.Writer, frames []image.Image, delays []time.Duration, mode ColorMode) {
+	if len(frames) == 0 {
+		return
+	}
+
+	// 프레임을 미리 문자열로 렌더링해 재생 중 CPU 부담을 줄인다.
+	strs := make([]string, len(frames))
+	for i, f := range frames {
+		strs[i] = RenderString(f, mode)
+	}
+	// 프레임 높이(터미널 행 수): half-block이므로 픽셀 높이/2
+	rows := frames[0].Bounds().Dy() / 2
+
+	fmt.Fprint(w, "\033[?25l")       // 커서 숨김
+	defer fmt.Fprint(w, "\033[?25h") // 종료 시 커서 복원
+
+	first := true
+	for {
+		for i, s := range strs {
+			if !first {
+				fmt.Fprintf(w, "\033[%dA", rows) // 커서를 프레임 맨 위로
+			}
+			first = false
+			fmt.Fprint(w, s)
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(delays[i]):
+			}
+		}
+	}
 }
 
 func truecolorSeq(fg, bg color.Color) string {

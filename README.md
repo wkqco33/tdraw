@@ -3,6 +3,7 @@
 원격 접속(SSH 등) 환경처럼 터미널만 사용 가능한 상황에서 이미지를 확인하기 위한 CLI 뷰어.
 
 Unicode half-block(`▀`)과 ANSI 24-bit 컬러를 이용해 터미널에 이미지를 출력한다.
+GIF는 애니메이션으로 재생된다.
 
 CLI로 직접 사용하거나, Go 라이브러리로 임포트해 사용할 수 있다.
 
@@ -51,6 +52,9 @@ tdraw *.jpg
 
 # 256색 모드 (truecolor 미지원 터미널)
 tdraw -color 256 photo.jpg
+
+# GIF 애니메이션 재생 (Ctrl+C로 종료)
+tdraw anim.gif
 ```
 
 ## 라이브러리 사용법
@@ -72,6 +76,11 @@ err := tdraw.DrawFile(os.Stdout, "photo.jpg", tdraw.Options{
 
 // image.Image로 렌더링
 tdraw.Draw(os.Stdout, img, tdraw.Options{})
+
+// GIF 애니메이션 재생 (ctx 취소 시 종료)
+ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+defer stop()
+tdraw.PlayGIFFile(ctx, os.Stdout, "anim.gif", tdraw.Options{})
 
 // 터미널 크기 조회
 cols, rows := tdraw.TermSize()
@@ -109,7 +118,7 @@ func main() {
 
 ## 지원 포맷
 
-- JPEG, PNG, GIF (첫 프레임), WebP, BMP
+- JPEG, PNG, GIF (애니메이션 재생), WebP, BMP
 
 ## 컬러 모드
 
@@ -187,6 +196,15 @@ Y = (299×R + 587×G + 114×B) / 1000
 ### 메모리 효율적 렌더링
 
 `strings.Builder`로 한 줄 분량의 ANSI 시퀀스를 버퍼에 모은 뒤 한 번에 출력한다. 픽셀별로 개별 할당하지 않아 대용량 이미지도 안정적으로 처리된다.
+
+### GIF 애니메이션 재생
+
+GIF 프레임은 전체 캔버스의 일부 영역만 담고 있어, disposal method에 따라 누적 합성해야 실제 화면이 된다.
+
+- **합성**: 프레임을 캔버스에 `draw.Over`로 그린 뒤 스냅샷을 저장. disposal이 `Background`면 해당 영역을 투명으로 지우고, `Previous`면 직전 캔버스 상태로 복원
+- **재생**: 합성된 프레임을 미리 문자열로 렌더링해 캐싱한 뒤, 커서를 위로 이동(`ESC[nA`)시키며 같은 위치에 덮어써 깜빡임 없이 재생
+- **delay**: GIF의 1/100초 단위 지연을 프레임별로 반영 (0이면 100ms)
+- **종료**: 재생 중 커서를 숨기고(`ESC[?25l`), `context` 취소(Ctrl+C) 시 커서를 복원(`ESC[?25h`)한 뒤 종료
 
 ## 요구사항
 

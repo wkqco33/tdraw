@@ -2,6 +2,7 @@
 package tdraw
 
 import (
+	"context"
 	"image"
 	"io"
 
@@ -48,6 +49,33 @@ func Draw(w io.Writer, img image.Image, opts Options) {
 
 	resized := imgutil.Resize(img, targetW, targetH)
 	render.Render(w, resized, opts.ColorMode)
+}
+
+// PlayGIFFile은 GIF 파일을 w에 애니메이션으로 무한 반복 재생한다.
+// ctx가 취소되면 재생을 멈춘다.
+func PlayGIFFile(ctx context.Context, w io.Writer, path string, opts Options) error {
+	anim, err := imgutil.LoadGIF(path)
+	if err != nil {
+		return err
+	}
+
+	targetW := opts.Width
+	targetH := opts.Height
+	if targetW <= 0 {
+		cols, _ := render.TermSize()
+		targetW = cols
+	}
+	if targetH <= 0 {
+		targetH = targetW * 4
+	}
+
+	frames := make([]image.Image, len(anim.Frames))
+	for i, f := range anim.Frames {
+		frames[i] = imgutil.Resize(f, targetW, targetH)
+	}
+
+	render.PlayGIF(ctx, w, frames, anim.Delays, opts.ColorMode)
+	return nil
 }
 
 // TermSize는 현재 터미널 크기를 반환한다.
