@@ -12,26 +12,35 @@ jobs:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive  # wcli 서브모듈 포함
 
       - name: Go 설치
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: go.mod  # go.mod의 go 지시어(1.26.1) 기준 설치
           cache: true
+
+      - name: Task 설치
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 의존성 다운로드
         run: go mod download
 
       - name: 빌드
-        run: make build
+        run: task build
 
       - name: 테스트
-        run: make test
+        run: task test
 
       - name: 정적 분석
-        run: make vet
+        run: task vet

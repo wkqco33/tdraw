@@ -1,0 +1,85 @@
+version: '3'
+
+vars:
+  BIN: tdraw
+  DISTDIR: dist
+  GO: go
+  GOFLAGS: -trimpath
+  # 빌드 버전: git describe 결과, 실패 시 dev
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+  LDFLAGS: -s -w -X main.version={{.VERSION}}
+  # 설치 경로 (Unix). Windows에서는 install/uninstall 태스크가 비활성화됨
+  BINDIR:
+    sh: echo "${HOME}/.local/bin"
+  PLATFORMS: linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
+
+tasks:
+  default:
+    desc: 기본 태스크 (build)
+    cmds:
+      - task: build
+
+  build:
+    desc: 현재 플랫폼용 바이너리 빌드
+    cmds:
+      - "{{.GO}} build {{.GOFLAGS}} -ldflags \"{{.LDFLAGS}}\" -o {{.BIN}} ./cmd/tdraw"
+
+  test:
+    desc: 테스트 실행
+    cmds:
+      - "{{.GO}} test ./... -v"
+
+  fmt:
+    desc: 코드 포맷
+    cmds:
+      - "{{.GO}} fmt ./..."
+
+  vet:
+    desc: 정적 분석
+    cmds:
+      - "{{.GO}} vet ./..."
+
+  release:
+    desc: 모든 플랫폼용 바이너리를 dist/ 에 빌드
+    deps: [clean-dist]
+    cmds:
+      - mkdir -p {{.DISTDIR}}
+      - |
+        for platform in {{.PLATFORMS}}; do
+          os=${platform%/*}
+          arch=${platform#*/}
+          ext=""
+          [ "$os" = "windows" ] && ext=".exe"
+          out="{{.DISTDIR}}/{{.BIN}}_${os}_${arch}${ext}"
+          echo "빌드: $out"
+          GOOS=$os GOARCH=$arch {{.GO}} build {{.GOFLAGS}} -ldflags "{{.LDFLAGS}}" -o "$out" ./cmd/tdraw
+        done
+      - 'echo "완료: {{.DISTDIR}}/"'
+      - ls -lh {{.DISTDIR}}/
+
+  install:
+    desc: "~/.local/bin 에 바이너리 설치 (Unix 전용)"
+    platforms: [linux, darwin]
+    deps: [build]
+    cmds:
+      - mkdir -p {{.BINDIR}}
+      - install -m 755 {{.BIN}} {{.BINDIR}}/{{.BIN}}
+      - 'echo "설치 완료: {{.BINDIR}}/{{.BIN}}"'
+
+  uninstall:
+    desc: 설치된 바이너리 삭제 (Unix 전용)
+    platforms: [linux, darwin]
+    cmds:
+      - rm -f {{.BINDIR}}/{{.BIN}}
+      - 'echo "삭제 완료: {{.BINDIR}}/{{.BIN}}"'
+
+  clean:
+    desc: 빌드 결과물 삭제
+    cmds:
+      - rm -f {{.BIN}} {{.BIN}}.exe
+
+  clean-dist:
+    desc: dist/ 디렉토리 삭제
+    cmds:
+      - rm -rf {{.DISTDIR}}

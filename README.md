@@ -13,13 +13,24 @@ CLI로 직접 사용하거나, Go 라이브러리로 임포트해 사용할 수 
 go install github.com/wkqco/tdraw/cmd/tdraw@latest
 ```
 
-또는 소스에서 빌드:
+또는 소스에서 빌드. 빌드는 [Task](https://taskfile.dev)를 사용한다(크로스 플랫폼, Windows 포함).
 
 ```bash
-git clone https://github.com/wkqco/tdraw
+# wcli 서브모듈 포함하여 클론
+git clone --recurse-submodules https://github.com/wkqco/tdraw
 cd tdraw
-make build
+task build
 ```
+
+주요 태스크 목록은 `task --list`로 확인한다.
+
+| 태스크 | 설명 |
+| ------ | ---- |
+| `task build` | 현재 플랫폼용 바이너리 빌드 |
+| `task test` | 테스트 실행 |
+| `task release` | 모든 플랫폼용 바이너리를 `dist/` 에 빌드 |
+| `task install` | `~/.local/bin` 에 설치 (Unix 전용) |
+| `task clean` | 빌드 결과물 삭제 |
 
 ## CLI 사용법
 
@@ -29,11 +40,14 @@ tdraw [옵션] <이미지파일> [이미지파일...]
 
 ### 옵션
 
+CLI는 [wcli](https://github.com/wkqco33/wcli) 프레임워크로 구현되어 있다. 긴 옵션은 `--`, 단축 옵션은 `-`를 사용한다.
+
 | 옵션 | 기본값 | 설명 |
 | ---- | ------ | ---- |
-| `-w int` | 터미널 너비 | 출력 너비 (열 수) |
-| `-color string` | `truecolor` | 컬러 모드: `truecolor` \| `256` \| `gray` |
-| `-version` | - | 버전 출력 |
+| `-w`, `--width int` | 터미널 너비 | 출력 너비 (열 수) |
+| `-c`, `--color string` | `truecolor` | 컬러 모드: `truecolor` \| `256` \| `gray` |
+| `--version` | - | 버전 출력 |
+| `-h`, `--help` | - | 도움말 출력 |
 
 ### 예시
 
@@ -45,16 +59,29 @@ tdraw photo.jpg
 tdraw -w 60 photo.jpg
 
 # 흑백 모드
-tdraw -color gray image.png
+tdraw --color gray image.png
 
 # 여러 파일 한번에
 tdraw *.jpg
 
 # 256색 모드 (truecolor 미지원 터미널)
-tdraw -color 256 photo.jpg
+tdraw --color 256 photo.jpg
 
 # GIF 애니메이션 재생 (Ctrl+C로 종료)
 tdraw anim.gif
+```
+
+### 셸 자동 완성
+
+```bash
+# Bash
+source <(tdraw completion bash)
+
+# Zsh
+source <(tdraw completion zsh)
+
+# Fish
+tdraw completion fish > ~/.config/fish/completions/tdraw.fish
 ```
 
 ## 라이브러리 사용법
