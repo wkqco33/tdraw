@@ -82,6 +82,9 @@ func LoadGIF(path string) (*GIFAnim, error) {
 	if err != nil {
 		return nil, fmt.Errorf("GIF 디코딩 실패: %w", err)
 	}
+	if len(g.Image) == 0 {
+		return nil, fmt.Errorf("GIF에 프레임이 없습니다")
+	}
 
 	w, h := g.Config.Width, g.Config.Height
 	canvas := image.NewRGBA(image.Rect(0, 0, w, h))

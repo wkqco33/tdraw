@@ -90,6 +90,27 @@ func TestRender_GraySequence(t *testing.T) {
 	}
 }
 
+// wrapImage는 *image.RGBA를 감싸 타입 단언을 실패시켜 RenderString의 폴백(At) 경로를
+// 강제한다. 빠른 경로(RGBAAt)와 출력이 바이트 단위로 같아야 한다.
+type wrapImage struct{ image.Image }
+
+func TestRenderString_FastPathMatchesFallback(t *testing.T) {
+	// 픽셀마다 색이 다른 그라데이션(불투명)으로 두 경로를 비교
+	img := image.NewRGBA(image.Rect(0, 0, 12, 8))
+	for y := 0; y < 8; y++ {
+		for x := 0; x < 12; x++ {
+			img.SetRGBA(x, y, color.RGBA{R: uint8(x * 20), G: uint8(y * 30), B: uint8(x ^ y), A: 255})
+		}
+	}
+	for _, mode := range []ColorMode{ColorTruecolor, Color256, ColorGray} {
+		fast := RenderString(img, mode)
+		slow := RenderString(wrapImage{img}, mode)
+		if fast != slow {
+			t.Errorf("mode=%d: 빠른 경로와 폴백 경로 출력이 다름", mode)
+		}
+	}
+}
+
 // --- rgb2ansi256 팔레트 범위 테스트 ---
 
 func TestRgb2Ansi256_Range(t *testing.T) {
