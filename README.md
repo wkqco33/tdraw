@@ -28,9 +28,26 @@ task build
 | ------ | ---- |
 | `task build` | 현재 플랫폼용 바이너리 빌드 |
 | `task test` | 테스트 실행 |
-| `task release` | 모든 플랫폼용 바이너리를 `dist/` 에 빌드 |
+| `task release` | PPM용 플랫폼별 아카이브와 SHA-256 체크섬을 `dist/` 에 생성 |
 | `task install` | `~/.local/bin` 에 설치 (Unix 전용) |
 | `task clean` | 빌드 결과물 삭제 |
+
+`task release`는 PPM 패키지 매니저에서 자동 인식할 수 있는 다음 릴리스 자산을 생성한다.
+
+```text
+tdraw_linux_amd64.tar.gz
+tdraw_linux_amd64.tar.gz.sha256
+tdraw_linux_arm64.tar.gz
+tdraw_linux_arm64.tar.gz.sha256
+tdraw_darwin_amd64.tar.gz
+tdraw_darwin_amd64.tar.gz.sha256
+tdraw_darwin_arm64.tar.gz
+tdraw_darwin_arm64.tar.gz.sha256
+tdraw_windows_amd64.zip
+tdraw_windows_amd64.zip.sha256
+```
+
+GitHub Release에 `dist/`의 아카이브와 체크섬 파일을 함께 업로드하면 PPM으로 설치할 수 있다.
 
 ## CLI 사용법
 

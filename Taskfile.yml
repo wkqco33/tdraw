@@ -41,7 +41,7 @@ tasks:
       - "{{.GO}} vet ./..."
 
   release:
-    desc: 모든 플랫폼용 바이너리를 dist/ 에 빌드
+    desc: PPM용 플랫폼별 아카이브와 SHA-256 체크섬을 dist/ 에 생성
     deps: [clean-dist]
     cmds:
       - mkdir -p {{.DISTDIR}}
@@ -49,11 +49,28 @@ tasks:
         for platform in {{.PLATFORMS}}; do
           os=${platform%/*}
           arch=${platform#*/}
-          ext=""
-          [ "$os" = "windows" ] && ext=".exe"
-          out="{{.DISTDIR}}/{{.BIN}}_${os}_${arch}${ext}"
-          echo "빌드: $out"
-          GOOS=$os GOARCH=$arch {{.GO}} build {{.GOFLAGS}} -ldflags "{{.LDFLAGS}}" -o "$out" ./cmd/tdraw
+          binary_name="{{.BIN}}"
+          archive_ext=".tar.gz"
+          if [ "$os" = "windows" ]; then
+            binary_name="{{.BIN}}.exe"
+            archive_ext=".zip"
+          fi
+
+          binary="{{.DISTDIR}}/$binary_name"
+          archive="{{.DISTDIR}}/{{.BIN}}_${os}_${arch}${archive_ext}"
+          echo "빌드: $archive"
+          GOOS=$os GOARCH=$arch {{.GO}} build {{.GOFLAGS}} -ldflags "{{.LDFLAGS}}" -o "$binary" ./cmd/tdraw
+
+          if [ "$os" = "windows" ]; then
+            zip -q -j "$archive" "$binary"
+            unzip -tq "$archive"
+          else
+            tar -czf "$archive" -C "{{.DISTDIR}}" "$binary_name"
+            tar -tzf "$archive" >/dev/null
+          fi
+
+          (cd "{{.DISTDIR}}" && sha256sum "$(basename "$archive")" > "$(basename "$archive").sha256")
+          rm -f "$binary"
         done
       - 'echo "완료: {{.DISTDIR}}/"'
       - ls -lh {{.DISTDIR}}/
