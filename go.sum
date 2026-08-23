@@ -1,3 +1,5 @@
+github.com/wkqco33/wcli v0.2.0 h1:f4hbJ8XtNTDXLInnftAaKeJwmWu5VaTa5QxSmrKbGUY=
+github.com/wkqco33/wcli v0.2.0/go.mod h1:4ENGpQ6fBCBNJxfMEYqro1SrosRjrrEreGeJXQsoolo=
 golang.org/x/image v0.37.0 h1:ZiRjArKI8GwxZOoEtUfhrBtaCN+4b/7709dlT6SSnQA=
 golang.org/x/image v0.37.0/go.mod h1:/3f6vaXC+6CEanU4KJxbcUZyEePbyKbaLoDOe4ehFYY=
 golang.org/x/sys v0.42.0 h1:omrd2nAlyT5ESRdCLYdm3+fMfNFE/+Rf4bDIQImRJeo=

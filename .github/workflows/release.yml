@@ -17,8 +17,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # git describe 를 위해 전체 히스토리 필요
-          submodules: recursive  # wcli 서브모듈 포함
-          token: ${{ secrets.WCLI_TOKEN }}  # private 서브모듈(wcli) 접근용 PAT
 
       - name: Go 설치
         uses: actions/setup-go@v5

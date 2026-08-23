@@ -6,8 +6,8 @@ import (
 	"image"
 	"io"
 
-	"github.com/wkqco/tdraw/imgutil"
-	"github.com/wkqco/tdraw/render"
+	"github.com/wkqco33/tdraw/imgutil"
+	"github.com/wkqco33/tdraw/render"
 )
 
 type ColorMode = render.ColorMode

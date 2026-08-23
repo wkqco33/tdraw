@@ -11,13 +11,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/seoyc/wcli"
-	"github.com/seoyc/wcli/logging"
-	"github.com/seoyc/wcli/rich"
+	"github.com/wkqco33/wcli"
+	"github.com/wkqco33/wcli/logging"
+	"github.com/wkqco33/wcli/rich"
 	"golang.org/x/term"
 
-	"github.com/wkqco/tdraw/imgutil"
-	"github.com/wkqco/tdraw/render"
+	"github.com/wkqco33/tdraw/imgutil"
+	"github.com/wkqco33/tdraw/render"
 )
 
 // version은 빌드 시 ldflags로 주입된다: -X main.version=vX.Y.Z

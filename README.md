@@ -10,14 +10,14 @@ CLI로 직접 사용하거나, Go 라이브러리로 임포트해 사용할 수 
 ## CLI 설치
 
 ```bash
-go install github.com/wkqco/tdraw/cmd/tdraw@latest
+go install github.com/wkqco33/tdraw/cmd/tdraw@latest
 ```
 
 또는 소스에서 빌드. 빌드는 [Task](https://taskfile.dev)를 사용한다(크로스 플랫폼, Windows 포함).
 
 ```bash
-# wcli 서브모듈 포함하여 클론
-git clone --recurse-submodules https://github.com/wkqco/tdraw
+# 소스에서 클론
+git clone https://github.com/wkqco33/tdraw
 cd tdraw
 task build
 ```
@@ -87,13 +87,13 @@ tdraw completion fish > ~/.config/fish/completions/tdraw.fish
 ## 라이브러리 사용법
 
 ```bash
-go get github.com/wkqco/tdraw
+go get github.com/wkqco33/tdraw
 ```
 
 ### API
 
 ```go
-import "github.com/wkqco/tdraw"
+import "github.com/wkqco33/tdraw"
 
 // 파일 경로로 렌더링
 err := tdraw.DrawFile(os.Stdout, "photo.jpg", tdraw.Options{
@@ -128,7 +128,7 @@ package main
 
 import (
     "os"
-    "github.com/wkqco/tdraw"
+    "github.com/wkqco33/tdraw"
 )
 
 func main() {
@@ -235,5 +235,5 @@ GIF 프레임은 전체 캔버스의 일부 영역만 담고 있어, disposal me
 
 ## 요구사항
 
-- Go 1.21+
+- Go 1.26.1+
 - 터미널의 truecolor 지원 권장 (`COLORTERM=truecolor`)
