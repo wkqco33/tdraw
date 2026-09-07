@@ -66,6 +66,96 @@ CLI는 [wcli](https://github.com/wkqco33/wcli) 프레임워크로 구현되어 �
 | `--version` | - | 버전 출력 |
 | `-h`, `--help` | - | 도움말 출력 |
 
+### AI 이미지 질의
+
+Ollama의 Vision 모델을 사용해 이미지에 자연어 질문을 할 수 있다. 기본 모델은
+`llava`이며, Ollama가 실행 중이고 모델이 설치되어 있어야 한다.
+
+```bash
+# Ollama 설치 후 Vision 모델 준비
+ollama pull llava
+
+# 이미지 설명
+tdraw ask photo.jpg "이 이미지에 무엇이 보이나요?"
+
+# 스크린샷의 오류 메시지 확인
+tdraw ask screenshot.png "오류 메시지만 간결하게 알려줘"
+
+# JSON 출력
+tdraw ask photo.jpg "주요 객체를 알려줘" --json
+
+# 이미지 텍스트 추출
+tdraw ocr screenshot.png
+tdraw ocr receipt.jpg --json
+```
+
+`ask`는 다음 환경변수로 Ollama 연결을 설정할 수 있다.
+
+| 환경변수 | 기본값 | 설명 |
+| -------- | ------ | ---- |
+| `TDRAW_LLM_MODEL` | `llava` | 사용할 Ollama Vision 모델 |
+| `TDRAW_OLLAMA_URL` | `http://localhost:11434/v1` | Ollama OpenAI 호환 API 주소 |
+
+플래그로도 설정할 수 있다.
+
+```bash
+tdraw ask --model llama3.2-vision image.jpg "이미지를 설명해줘"
+tdraw ask --ollama-url http://localhost:11434/v1 image.jpg "텍스트를 읽어줘"
+```
+
+이미지는 분석을 위해 Ollama 서버로 전송된다. 민감한 이미지에는 로컬에서 실행되는
+Ollama를 사용하고, Ollama Vision 모델이 아닌 텍스트 전용 모델은 사용할 수 없다.
+
+### AI 에이전트
+
+`agent` 명령은 이미지와 요청을 Ollama Vision 모델에 전달하고, 필요한 경우 이미지의
+정확한 포맷과 크기를 읽기 전용 도구로 확인한다. 현재 파일을 수정하거나 외부 명령을
+실행하는 도구는 제공하지 않는다.
+
+```bash
+tdraw agent screenshot.png "이미지 내용을 요약하고 원본 크기도 알려줘"
+tdraw agent photo.jpg "사람이 있는지와 이미지 크기를 알려줘" --json
+```
+
+`agent`도 `TDRAW_LLM_MODEL`, `TDRAW_OLLAMA_URL`, `--model`, `--ollama-url` 설정을
+`ask`와 동일하게 사용한다.
+
+### OCR
+
+`ocr`는 이미지의 텍스트만 추출하며, 원래 줄바꿈과 읽기 순서를 유지하도록
+Vision 모델에 요청한다.
+
+```bash
+tdraw ocr terminal-error.png
+tdraw ocr document.jpg --model llama3.2-vision
+tdraw ocr receipt.png --json
+```
+
+OCR 결과는 모델 응답에 의존하므로 작은 글씨, 흐린 이미지, 손글씨에서는 정확도가
+낮을 수 있다. 출력이 필요하면 `--json`으로 이미지 경로와 모델명을 함께 받을 수 있다.
+
+### 이미지 인덱싱과 검색
+
+여러 이미지를 반복해서 검색할 때는 먼저 Vision 설명을 로컬 인덱스에 저장한다.
+이미지 원본은 인덱스에 복사하지 않는다.
+
+```bash
+# 기본 출력: ./photos/.tdraw/index.json
+tdraw index ./photos
+
+# 설명과 경로로 검색
+tdraw find ./photos "터미널 오류"
+tdraw find ./photos "고양이" --limit 10
+
+# 자동화용 JSON 출력
+tdraw find ./photos "영수증" --json
+```
+
+인덱스 생성 시 각 이미지가 Ollama로 전송되며, 생성된 설명과 포맷·크기만 JSON으로
+저장된다. 검색 단계에서는 모델을 호출하지 않고 로컬 인덱스만 사용한다. 출력 위치는
+`tdraw index ./photos --output /path/to/index.json`, 검색 인덱스는
+`tdraw find ./photos "검색어" --index /path/to/index.json`으로 변경할 수 있다.
+
 ### 예시
 
 ```bash

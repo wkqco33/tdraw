@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"image"
@@ -11,13 +12,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wkqco33/LLM_client_go/ollama"
 	"github.com/wkqco33/wcli"
 	"github.com/wkqco33/wcli/logging"
 	"github.com/wkqco33/wcli/rich"
 	"golang.org/x/term"
 
+	"github.com/wkqco33/tdraw/imgindex"
 	"github.com/wkqco33/tdraw/imgutil"
 	"github.com/wkqco33/tdraw/render"
+	"github.com/wkqco33/tdraw/vision"
 )
 
 // version은 빌드 시 ldflags로 주입된다: -X main.version=vX.Y.Z
@@ -33,9 +37,24 @@ var errFailed = errors.New("처리 실패")
 
 func main() {
 	var (
-		width     int
-		colorMode string
-		verbose   bool
+		width      int
+		colorMode  string
+		verbose    bool
+		askModel   string
+		ollamaURL  string
+		jsonOut    bool
+		agentModel string
+		agentURL   string
+		agentJSON  bool
+		ocrModel   string
+		ocrURL     string
+		ocrJSON    bool
+		indexModel string
+		indexURL   string
+		indexOut   string
+		findIndex  string
+		findLimit  int
+		findJSON   bool
 	)
 
 	root := &wcli.Command{
@@ -57,6 +76,11 @@ func main() {
 	root.Flags().SetValidation("color", validateColorMode)
 
 	root.AddCommand(wcli.NewCompletionCommand(root))
+	root.AddCommand(newAskCommand(&askModel, &ollamaURL, &jsonOut))
+	root.AddCommand(newAgentCommand(&agentModel, &agentURL, &agentJSON))
+	root.AddCommand(newOCRCommand(&ocrModel, &ocrURL, &ocrJSON))
+	root.AddCommand(newIndexCommand(&indexModel, &indexURL, &indexOut))
+	root.AddCommand(newFindCommand(&findIndex, &findLimit, &findJSON))
 
 	if err := root.Execute(os.Args[1:]); err != nil {
 		// 파일별 상세 에러는 run()에서 이미 출력했으므로(errFailed),
@@ -66,6 +90,207 @@ func main() {
 		}
 		os.Exit(1)
 	}
+}
+
+func newAskCommand(model, ollamaURL *string, jsonOut *bool) *wcli.Command {
+	ask := &wcli.Command{
+		Use:   "ask <이미지파일> <질문>",
+		Short: "Ollama Vision 모델로 이미지에 질문",
+		Long:  "Ollama의 Vision 모델에 이미지를 전달하고 자연어 질문을 수행한다.",
+		Run: func(ctx *wcli.Context) error {
+			if len(ctx.Args) < 2 {
+				return errors.New("이미지 파일과 질문을 지정하세요 (예: tdraw ask photo.jpg \"무엇이 보이나요?\")")
+			}
+
+			configuredModel := *model
+			if configuredModel == "" {
+				configuredModel = envOrDefault("TDRAW_LLM_MODEL", "llava")
+			}
+			configuredURL := *ollamaURL
+			if configuredURL == "" {
+				configuredURL = envOrDefault("TDRAW_OLLAMA_URL", "http://localhost:11434/v1")
+			}
+
+			client := ollama.New(ollama.Config{BaseURL: configuredURL})
+			question := strings.Join(ctx.Args[1:], " ")
+			answer, err := vision.AskFile(ctx.Context, client, configuredModel, ctx.Args[0], question)
+			if err != nil {
+				return err
+			}
+			if *jsonOut {
+				fmt.Printf("{\"image\":%q,\"model\":%q,\"answer\":%q}\n", ctx.Args[0], configuredModel, answer)
+				return nil
+			}
+			fmt.Println(answer)
+			return nil
+		},
+	}
+	ask.Flags().StringVar(model, "model", "m", "", "Ollama Vision 모델 (기본값: TDRAW_LLM_MODEL 또는 llava)")
+	ask.Flags().StringVar(ollamaURL, "ollama-url", "", "", "Ollama OpenAI 호환 주소 (기본값: TDRAW_OLLAMA_URL 또는 localhost:11434/v1)")
+	ask.Flags().BoolVar(jsonOut, "json", "j", false, "JSON 형식으로 출력")
+	return ask
+}
+
+func newAgentCommand(model, ollamaURL *string, jsonOut *bool) *wcli.Command {
+	agent := &wcli.Command{
+		Use:   "agent <이미지파일> <요청>",
+		Short: "Ollama Vision 에이전트로 이미지 작업 분석",
+		Long:  "이미지를 분석하고 필요한 경우 읽기 전용 이미지 도구를 호출한다.",
+		Run: func(ctx *wcli.Context) error {
+			if len(ctx.Args) < 2 {
+				return errors.New("이미지 파일과 요청을 지정하세요 (예: tdraw agent photo.jpg \"크기와 내용을 알려줘\")")
+			}
+			configuredModel := *model
+			if configuredModel == "" {
+				configuredModel = envOrDefault("TDRAW_LLM_MODEL", "llava")
+			}
+			configuredURL := *ollamaURL
+			if configuredURL == "" {
+				configuredURL = envOrDefault("TDRAW_OLLAMA_URL", "http://localhost:11434/v1")
+			}
+
+			client := ollama.New(ollama.Config{BaseURL: configuredURL})
+			request := strings.Join(ctx.Args[1:], " ")
+			answer, err := vision.RunAgentFile(ctx.Context, client, configuredModel, ctx.Args[0], request)
+			if err != nil {
+				return err
+			}
+			if *jsonOut {
+				fmt.Printf("{\"image\":%q,\"model\":%q,\"answer\":%q}\n", ctx.Args[0], configuredModel, answer)
+				return nil
+			}
+			fmt.Println(answer)
+			return nil
+		},
+	}
+	agent.Flags().StringVar(model, "model", "m", "", "Ollama Vision 모델 (기본값: TDRAW_LLM_MODEL 또는 llava)")
+	agent.Flags().StringVar(ollamaURL, "ollama-url", "", "", "Ollama OpenAI 호환 주소 (기본값: TDRAW_OLLAMA_URL 또는 localhost:11434/v1)")
+	agent.Flags().BoolVar(jsonOut, "json", "j", false, "JSON 형식으로 출력")
+	return agent
+}
+
+func newOCRCommand(model, ollamaURL *string, jsonOut *bool) *wcli.Command {
+	ocr := &wcli.Command{
+		Use:   "ocr <이미지파일>",
+		Short: "Ollama Vision 모델로 이미지의 텍스트 추출",
+		Long:  "이미지의 텍스트를 줄바꿈과 읽기 순서를 유지해 추출한다.",
+		Run: func(ctx *wcli.Context) error {
+			if len(ctx.Args) != 1 {
+				return errors.New("이미지 파일을 하나 지정하세요 (예: tdraw ocr screenshot.png)")
+			}
+			configuredModel := *model
+			if configuredModel == "" {
+				configuredModel = envOrDefault("TDRAW_LLM_MODEL", "llava")
+			}
+			configuredURL := *ollamaURL
+			if configuredURL == "" {
+				configuredURL = envOrDefault("TDRAW_OLLAMA_URL", "http://localhost:11434/v1")
+			}
+
+			client := ollama.New(ollama.Config{BaseURL: configuredURL})
+			text, err := vision.OCRFile(ctx.Context, client, configuredModel, ctx.Args[0])
+			if err != nil {
+				return err
+			}
+			if *jsonOut {
+				fmt.Printf("{\"image\":%q,\"model\":%q,\"text\":%q}\n", ctx.Args[0], configuredModel, text)
+				return nil
+			}
+			fmt.Println(text)
+			return nil
+		},
+	}
+	ocr.Flags().StringVar(model, "model", "m", "", "Ollama Vision 모델 (기본값: TDRAW_LLM_MODEL 또는 llava)")
+	ocr.Flags().StringVar(ollamaURL, "ollama-url", "", "", "Ollama OpenAI 호환 주소 (기본값: TDRAW_OLLAMA_URL 또는 localhost:11434/v1)")
+	ocr.Flags().BoolVar(jsonOut, "json", "j", false, "JSON 형식으로 출력")
+	return ocr
+}
+
+func newIndexCommand(model, ollamaURL, output *string) *wcli.Command {
+	indexCmd := &wcli.Command{
+		Use:   "index <디렉터리>",
+		Short: "이미지 설명 인덱스 생성",
+		Long:  "디렉터리의 이미지를 Ollama Vision으로 분석해 로컬 JSON 인덱스를 생성한다.",
+		Run: func(ctx *wcli.Context) error {
+			if len(ctx.Args) != 1 {
+				return errors.New("인덱싱할 디렉터리를 하나 지정하세요")
+			}
+			root := ctx.Args[0]
+			indexPath := *output
+			if indexPath == "" {
+				indexPath = filepath.Join(root, ".tdraw", "index.json")
+			}
+			configuredModel := *model
+			if configuredModel == "" {
+				configuredModel = envOrDefault("TDRAW_LLM_MODEL", "llava")
+			}
+			configuredURL := *ollamaURL
+			if configuredURL == "" {
+				configuredURL = envOrDefault("TDRAW_OLLAMA_URL", "http://localhost:11434/v1")
+			}
+			client := ollama.New(ollama.Config{BaseURL: configuredURL})
+			idx, err := imgindex.Build(ctx.Context, root, client, configuredModel, func(path string) {
+				fmt.Fprintf(os.Stderr, "분석 중: %s\n", path)
+			})
+			if err != nil {
+				return err
+			}
+			if err := idx.Save(indexPath); err != nil {
+				return fmt.Errorf("인덱스 저장 실패: %w", err)
+			}
+			fmt.Fprintf(os.Stderr, "인덱스 생성 완료: %s (%d개)\n", indexPath, len(idx.Entries))
+			return nil
+		},
+	}
+	indexCmd.Flags().StringVar(model, "model", "m", "", "Ollama Vision 모델")
+	indexCmd.Flags().StringVar(ollamaURL, "ollama-url", "", "", "Ollama OpenAI 호환 주소")
+	indexCmd.Flags().StringVar(output, "output", "o", "", "인덱스 출력 경로 (기본값: <디렉터리>/.tdraw/index.json)")
+	return indexCmd
+}
+
+func newFindCommand(indexPath *string, limit *int, jsonOut *bool) *wcli.Command {
+	findCmd := &wcli.Command{
+		Use:   "find <디렉터리> <검색어>",
+		Short: "인덱스에서 이미지 검색",
+		Long:  "로컬 이미지 인덱스의 경로와 Vision 설명을 대상으로 검색한다.",
+		Run: func(ctx *wcli.Context) error {
+			if len(ctx.Args) < 2 {
+				return errors.New("검색할 디렉터리와 검색어를 지정하세요")
+			}
+			path := *indexPath
+			if path == "" {
+				path = filepath.Join(ctx.Args[0], ".tdraw", "index.json")
+			}
+			idx, err := imgindex.Load(path)
+			if err != nil {
+				return fmt.Errorf("인덱스 로드 실패: %w (먼저 tdraw index를 실행하세요)", err)
+			}
+			results := idx.Search(strings.Join(ctx.Args[1:], " "), *limit)
+			if *jsonOut {
+				data, err := json.Marshal(results)
+				if err != nil {
+					return err
+				}
+				fmt.Println(string(data))
+				return nil
+			}
+			for _, entry := range results {
+				fmt.Printf("%s\t%s\n", entry.Path, entry.Description)
+			}
+			return nil
+		},
+	}
+	findCmd.Flags().StringVar(indexPath, "index", "i", "", "인덱스 파일 경로")
+	findCmd.Flags().IntVar(limit, "limit", "n", 20, "최대 결과 수")
+	findCmd.Flags().BoolVar(jsonOut, "json", "j", false, "JSON 형식으로 출력")
+	return findCmd
+}
+
+func envOrDefault(name, fallback string) string {
+	if value := os.Getenv(name); value != "" {
+		return value
+	}
+	return fallback
 }
 
 func run(ctx *wcli.Context, width int, colorMode string) error {
