@@ -253,6 +253,7 @@ func main() {
 ## 지원 포맷
 
 - JPEG, PNG, GIF (애니메이션 재생), WebP, BMP
+- PNM 계열: PGM (P2/P5, 회색조), PPM (P3/P6, 컬러), PBM (P1/P4, 흑백)
 
 ## 컬러 모드
 

@@ -29,13 +29,25 @@ func FileMessage(path, question string) (llm.Message, error) {
 
 	mediaType := http.DetectContentType(data)
 	if !strings.HasPrefix(mediaType, "image/") {
-		return llm.Message{}, fmt.Errorf("이미지 파일이 아닙니다: %s", mediaType)
+		// http.DetectContentType는 PNM(PBM/PGM/PPM)을 감지하지 못하므로 직접 확인한다.
+		if !isPNM(data) {
+			return llm.Message{}, fmt.Errorf("이미지 파일이 아닙니다: %s", mediaType)
+		}
+		mediaType = "image/x-portable-graymap"
 	}
 
 	return llm.NewUserMessageWithParts(
 		llm.TextContent(question),
 		llm.ImageContentData(data, mediaType),
 	), nil
+}
+
+// isPNM은 데이터가 Netpbm PNM 매직 넘버(P1-P6)로 시작하는지 확인한다.
+func isPNM(data []byte) bool {
+	if len(data) < 2 || data[0] != 'P' {
+		return false
+	}
+	return data[1] >= '1' && data[1] <= '6'
 }
 
 // AskFile sends an image and question to a vision-capable model.

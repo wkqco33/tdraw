@@ -62,3 +62,27 @@ func TestAskFile_RejectsNonImage(t *testing.T) {
 		t.Fatalf("expected image validation error, got %v", err)
 	}
 }
+
+func TestAskFile_PGM(t *testing.T) {
+	// http.DetectContentType는 PNM을 감지하지 못하므로 자체 검사로 통과해야 한다.
+	path := t.TempDir() + "/test.pgm"
+	data := []byte("P5\n2 2\n255\n\x00\x55\xaa\xff")
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	client := &fakeCompleter{}
+	if _, err := AskFile(context.Background(), client, "llava", path, "분석해줘"); err != nil {
+		t.Fatalf("AskFile() error = %v", err)
+	}
+
+	parts := client.request.Messages[0].ContentParts
+	if len(parts) != 2 || parts[1].ImageURL == nil {
+		t.Fatalf("unexpected content parts: %+v", parts)
+	}
+	wantData := base64.StdEncoding.EncodeToString(data)
+	if !strings.HasPrefix(parts[1].ImageURL.URL, "data:image/x-portable-graymap;base64,") ||
+		!strings.HasSuffix(parts[1].ImageURL.URL, wantData) {
+		t.Errorf("unexpected image data URL: %+v", parts[1])
+	}
+}

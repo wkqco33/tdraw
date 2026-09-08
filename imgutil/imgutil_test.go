@@ -242,3 +242,39 @@ func TestLoad_InvalidFormat(t *testing.T) {
 		t.Error("잘못된 파일에 대해 에러가 발생해야 함")
 	}
 }
+
+// writeTempPGM은 2x2 회색조 PGM(P5 바이너리) 파일을 생성하고 경로를 반환한다.
+func writeTempPGM(t *testing.T) string {
+	t.Helper()
+	f, err := os.CreateTemp(t.TempDir(), "test-*.pgm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if _, err := f.WriteString("P5\n2 2\n255\n\x00\x55\xaa\xff"); err != nil {
+		t.Fatal(err)
+	}
+	return f.Name()
+}
+
+func TestLoad_PGM(t *testing.T) {
+	path := writeTempPGM(t)
+	info, err := Load(path)
+	if err != nil {
+		t.Fatalf("PGM 로드 실패: %v", err)
+	}
+	if info.Width != 2 || info.Height != 2 {
+		t.Errorf("크기: got %dx%d, want 2x2", info.Width, info.Height)
+	}
+	if info.Format != "pgm" {
+		t.Errorf("Format: got %s, want pgm", info.Format)
+	}
+	// 픽셀 값 검증 (회색조)
+	want := []uint8{0, 85, 170, 255}
+	for i, v := range want {
+		x, y := i%2, i/2
+		if got := info.Image.At(x, y).(color.Gray).Y; got != v {
+			t.Errorf("픽셀(%d,%d): got %d, want %d", x, y, got, v)
+		}
+	}
+}

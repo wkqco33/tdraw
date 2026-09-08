@@ -138,7 +138,7 @@ func (idx *Index) Search(query string, limit int) []Entry {
 
 func isImagePath(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
-	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp":
+	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".pgm", ".ppm", ".pbm":
 		return true
 	default:
 		return false

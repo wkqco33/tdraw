@@ -60,7 +60,7 @@ func main() {
 	root := &wcli.Command{
 		Use:     "tdraw [옵션] <이미지파일>...",
 		Short:   "이미지를 터미널에 렌더링하는 CLI",
-		Long:    "JPEG, PNG, GIF, WebP, BMP 이미지를 터미널에 컬러로 출력한다.\nGIF는 애니메이션으로 무한 반복 재생하며 Ctrl+C로 종료한다.",
+		Long:    "JPEG, PNG, GIF, WebP, BMP, PGM(PPM/PBM) 이미지를 터미널에 컬러로 출력한다.\nGIF는 애니메이션으로 무한 반복 재생하며 Ctrl+C로 종료한다.",
 		Version: "tdraw " + version,
 		// 파일별 에러는 직접 출력하므로 wcli의 자동 에러 출력을 끈다.
 		SilenceErrors: true,

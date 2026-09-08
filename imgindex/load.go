@@ -12,6 +12,8 @@ import (
 
 	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/webp"
+
+	_ "github.com/wkqco33/tdraw/pnm" // PBM/PGM/PPM (P1-P6)
 )
 
 type decodedInfo struct {

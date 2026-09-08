@@ -14,6 +14,8 @@ import (
 	_ "golang.org/x/image/bmp"
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
+
+	_ "github.com/wkqco33/tdraw/pnm" // PBM/PGM/PPM (P1-P6)
 )
 
 type ImageInfo struct {
