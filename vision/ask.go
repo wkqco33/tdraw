@@ -2,13 +2,17 @@
 package vision
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"image"
+	"image/png"
 	"net/http"
 	"os"
 	"strings"
 
 	llm "github.com/wkqco33/LLM_client_go"
+	_ "github.com/wkqco33/tdraw/pnm"
 )
 
 // Completer is the part of an LLM client required for image questions.
@@ -28,12 +32,21 @@ func FileMessage(path, question string) (llm.Message, error) {
 	}
 
 	mediaType := http.DetectContentType(data)
-	if !strings.HasPrefix(mediaType, "image/") {
-		// http.DetectContentType는 PNM(PBM/PGM/PPM)을 감지하지 못하므로 직접 확인한다.
-		if !isPNM(data) {
-			return llm.Message{}, fmt.Errorf("이미지 파일이 아닙니다: %s", mediaType)
+	if isPNM(data) {
+		// Vision API 구현체는 PNM MIME 타입과 ASCII PNM 바이트를 지원하지
+		// 않을 수 있으므로, API 호환성이 높은 PNG로 정규화한다.
+		img, _, err := image.Decode(bytes.NewReader(data))
+		if err != nil {
+			return llm.Message{}, fmt.Errorf("PNM 이미지 디코딩 실패: %w", err)
 		}
-		mediaType = "image/x-portable-graymap"
+		var encoded bytes.Buffer
+		if err := png.Encode(&encoded, img); err != nil {
+			return llm.Message{}, fmt.Errorf("PNM 이미지 PNG 변환 실패: %w", err)
+		}
+		data = encoded.Bytes()
+		mediaType = "image/png"
+	} else if !strings.HasPrefix(mediaType, "image/") {
+		return llm.Message{}, fmt.Errorf("이미지 파일이 아닙니다: %s", mediaType)
 	}
 
 	return llm.NewUserMessageWithParts(

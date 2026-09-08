@@ -105,6 +105,7 @@ tdraw ask --ollama-url http://localhost:11434/v1 image.jpg "텍스트를 읽어�
 
 이미지는 분석을 위해 Ollama 서버로 전송된다. 민감한 이미지에는 로컬에서 실행되는
 Ollama를 사용하고, Ollama Vision 모델이 아닌 텍스트 전용 모델은 사용할 수 없다.
+PBM/PGM/PPM 이미지는 Vision API 호환성을 위해 요청 전에 PNG로 변환되어 전송된다.
 
 ### AI 에이전트
 
