@@ -56,6 +56,7 @@ jobs:
           repository: wkqco33/tcamviewer
           ref: v0.2.1
           path: tcamviewer
+          submodules: recursive  # third_party/wcppcli 필요
 
       - name: FFmpeg 개발 라이브러리 설치
         run: |
@@ -79,7 +80,7 @@ jobs:
 
       - name: tcamviewer 코어 빌드
         run: |
-          cmake -S tcamviewer -B tcamviewer/build -DCMAKE_BUILD_TYPE=Release
+          cmake -S tcamviewer -B tcamviewer/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
           cmake --build tcamviewer/build --parallel
 
       - name: 비디오 연동 테스트
