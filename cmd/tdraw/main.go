@@ -21,6 +21,8 @@ import (
 	"github.com/wkqco33/tdraw/imgindex"
 	"github.com/wkqco33/tdraw/imgutil"
 	"github.com/wkqco33/tdraw/render"
+	"github.com/wkqco33/tdraw/video"
+	"github.com/wkqco33/tdraw/video/tcam"
 	"github.com/wkqco33/tdraw/vision"
 )
 
@@ -30,6 +32,10 @@ var version = "dev"
 // heightScaleFactor는 자동 높이 상한을 출력 폭의 배수로 정한다.
 // 세로는 스크롤 가능하므로 비율 유지 확대 시 품질을 우선해 넉넉히 잡는다.
 const heightScaleFactor = 4
+
+// metaReserveRows는 비디오 재생 시 메타 박스 등 프레임 위에 남겨둘 터미널 행 수다.
+// 박스(내용 행 + 테두리 2행)와 여유를 합해 여유 있게 잡는다.
+const metaReserveRows = 9
 
 // errFailed는 처리 실패를 알리는 센티넬 에러다. SilenceErrors로 자동 출력이
 // 억제되므로 메시지는 호출부에서 직접 출력하고, main은 종료 코드 판정에만 사용한다.
@@ -55,6 +61,9 @@ func main() {
 		findIndex  string
 		findLimit  int
 		findJSON   bool
+		playLoop   bool
+		playWidth  int
+		playColor  string
 	)
 
 	root := &wcli.Command{
@@ -81,6 +90,7 @@ func main() {
 	root.AddCommand(newOCRCommand(&ocrModel, &ocrURL, &ocrJSON))
 	root.AddCommand(newIndexCommand(&indexModel, &indexURL, &indexOut))
 	root.AddCommand(newFindCommand(&findIndex, &findLimit, &findJSON))
+	root.AddCommand(newPlayCommand(&playLoop, &playWidth, &playColor))
 
 	if err := root.Execute(os.Args[1:]); err != nil {
 		// 파일별 상세 에러는 run()에서 이미 출력했으므로(errFailed),
@@ -421,16 +431,22 @@ func showGIF(ctx context.Context, path string, targetW, targetH int, mode render
 // 라벨 세로 정렬은 rich.DisplayWidth(전각=2 반영)로 계산하고, 테두리 정렬은
 // rich.Box가 처리한다. accent는 제목 색상, frames > 0이면 GIF로 간주한다.
 func printMetaBox(title, accent, format string, origW, origH, outW, outH, frames int) {
-	type kv struct{ k, v string }
-	rows := []kv{
+	rows := []metaKV{
 		{"포맷", strings.ToUpper(format)},
 		{"원본", fmt.Sprintf("%d x %d", origW, origH)},
 		{"출력", fmt.Sprintf("%d x %d", outW, outH)},
 	}
 	if frames > 0 {
-		rows = append(rows, kv{"프레임", fmt.Sprintf("%d  (Ctrl+C로 종료)", frames)})
+		rows = append(rows, metaKV{"프레임", fmt.Sprintf("%d  (Ctrl+C로 종료)", frames)})
 	}
+	printMetaRows(title, accent, rows)
+}
 
+// metaKV는 메타 박스의 한 행(라벨, 값)이다.
+type metaKV struct{ k, v string }
+
+// printMetaRows는 key-value 행들로 rich.Box 메타 박스를 stdout에 출력한다.
+func printMetaRows(title, accent string, rows []metaKV) {
 	// 가장 넓은 라벨 기준으로 값을 세로 정렬한다.
 	labelW := 0
 	for _, r := range rows {
@@ -451,6 +467,110 @@ func printMetaBox(title, accent, format string, origW, origH, outW, outH, frames
 	rich.NewBox(b.String()).
 		WithTitle(fmt.Sprintf("[%s]%s[/%s]", accent, title, accent)).
 		Render(os.Stdout)
+}
+
+// printPlayMeta는 비디오 재생 전 메타 박스를 출력하고 사용한 행 수를 반환한다.
+func printPlayMeta(path string, spec video.Spec, rot, tw, th int, loop bool) int {
+	name := filepath.Base(path)
+	format := strings.ToUpper(strings.TrimPrefix(filepath.Ext(path), "."))
+	if format == "" {
+		format = "VIDEO"
+	}
+
+	// 회전 90/270에서는 표시 가로세로가 뒤바뀐다.
+	outW, outH := tw, th
+	if rot%180 == 90 {
+		outW, outH = th, tw
+	}
+
+	rows := []metaKV{
+		{"포맷", format},
+		{"원본", fmt.Sprintf("%d x %d", spec.Width, spec.Height)},
+		{"출력", fmt.Sprintf("%d x %d", outW, outH)},
+		{"FPS", fmt.Sprintf("%g", spec.FPS)},
+	}
+	if rot != 0 {
+		rows = append(rows, metaKV{"회전", fmt.Sprintf("%d°", rot)})
+	}
+	mode := "1회 재생"
+	if loop {
+		mode = "무한 반복"
+	}
+	rows = append(rows, metaKV{"재생", mode + "  (Ctrl+C로 종료)"})
+
+	// 박스는 제목 테두리 1행 + 내용 행 + 마감 테두리 1행 = 내용 행 수 + 2다.
+	printMetaRows("🎬 "+name, "magenta", rows)
+	return len(rows) + 2
+}
+
+// newPlayCommand는 비디오 재생 서브커맨드를 만든다.
+func newPlayCommand(loop *bool, width *int, colorMode *string) *wcli.Command {
+	play := &wcli.Command{
+		Use:   "play <비디오파일>",
+		Short: "비디오를 터미널에서 재생",
+		Long: "MP4, MKV, AVI, WebM 등 FFmpeg이 지원하는 비디오 파일을 터미널에서 재생한다.\n" +
+			"비디오 재생은 tcamviewer 라이브러리와 함께 빌드된 바이너리에서만 동작한다\n" +
+			"(task build:video). 오디오는 출력되지 않는다.",
+		Run: func(ctx *wcli.Context) error {
+			if len(ctx.Args) != 1 {
+				return errors.New("비디오 파일을 하나 지정하세요 (예: tdraw play clip.mp4)")
+			}
+			return runPlay(ctx, *loop, *width, *colorMode)
+		},
+	}
+	play.Flags().BoolVar(loop, "loop", "l", false, "스트림 끝에서 처음부터 반복 재생")
+	play.Flags().IntVar(width, "width", "w", 0, "출력 너비 (열 수, 기본값: 터미널 너비)")
+	play.Flags().StringVar(colorMode, "color", "c", "truecolor", "컬러 모드: truecolor | 256 | gray")
+	play.Flags().SetValidation("color", validateColorMode)
+	return play
+}
+
+// runPlay는 비디오 파일을 열어 메타 박스를 출력한 뒤 실시간 재생한다.
+func runPlay(ctx *wcli.Context, loop bool, width int, colorMode string) error {
+	path := ctx.Args[0]
+
+	// 디코더 레벨 loop는 쓰지 않는다. 루프는 엔진(video.Play)이 담당해
+	// EOF 시점에 되감기므로 어떤 FrameSource와도 동일하게 동작한다.
+	src, err := tcam.Open(path, false)
+	if err != nil {
+		if errors.Is(err, tcam.ErrUnsupported) {
+			rich.Fprintln(os.Stderr, "[red]오류:[/red] %s", err.Error())
+		} else {
+			rich.Fprintln(os.Stderr, "[red]오류 (%s): %s[/red]", filepath.Base(path), err.Error())
+		}
+		return errFailed
+	}
+	defer src.Close()
+
+	spec := src.Spec()
+	mode := parseColorMode(colorMode)
+	rot := ((src.Rotation() % 360) + 360) % 360
+
+	// 메타 박스와 프레임이 터미널 안에 함께 들어가도록 프레임 높이를 제한한다.
+	// 그래야 커서 업 기반 프레임 갱신이 스크롤 없이 유지된다.
+	cols, rows := render.TermSize()
+	if width > 0 {
+		cols = width
+	}
+	tw, th := video.TargetSize(spec.Width, spec.Height, rot, cols, rows-metaReserveRows)
+
+	printPlayMeta(path, spec, rot, tw, th, loop)
+
+	// Ctrl+C로 재생을 중단할 수 있도록 시그널 컨텍스트를 쓴다.
+	sigCtx, stop := signal.NotifyContext(ctx.Context, os.Interrupt)
+	defer stop()
+
+	err = video.Play(sigCtx, src, video.Options{
+		Mode:    mode,
+		Loop:    loop,
+		TargetW: tw,
+		TargetH: th,
+	})
+	if err != nil && !errors.Is(err, context.Canceled) {
+		rich.Fprintln(os.Stderr, "[red]오류 (%s): %s[/red]", filepath.Base(path), err.Error())
+		return errFailed
+	}
+	return nil
 }
 
 // setupLogger는 진단 로거를 stderr에 설정한다.

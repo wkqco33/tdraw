@@ -3,7 +3,8 @@
 원격 접속(SSH 등) 환경처럼 터미널만 사용 가능한 상황에서 이미지를 확인하기 위한 CLI 뷰어.
 
 Unicode half-block(`▀`)과 ANSI 24-bit 컬러를 이용해 터미널에 이미지를 출력한다.
-GIF는 애니메이션으로 재생된다.
+GIF는 애니메이션으로 재생되고, 비디오 파일(MP4/MKV 등)은 `play` 명령으로 터미널에서
+재생할 수 있다.
 
 CLI로 직접 사용하거나, Go 라이브러리로 임포트해 사용할 수 있다.
 
@@ -26,7 +27,8 @@ task build
 
 | 태스크 | 설명 |
 | ------ | ---- |
-| `task build` | 현재 플랫폼용 바이너리 빌드 |
+| `task build` | 현재 플랫폼용 바이너리 빌드 (비디오 재생 미포함) |
+| `task build:video` | 비디오 재생(tcamviewer) 포함 빌드 |
 | `task test` | 테스트 실행 |
 | `task release` | PPM용 플랫폼별 아카이브와 SHA-256 체크섬을 `dist/` 에 생성 |
 | `task install` | `~/.local/bin` 에 설치 (Unix 전용) |
@@ -178,6 +180,39 @@ tdraw --color 256 photo.jpg
 # GIF 애니메이션 재생 (Ctrl+C로 종료)
 tdraw anim.gif
 ```
+
+### 비디오 재생
+
+MP4, MKV, AVI, WebM 등 [FFmpeg](https://ffmpeg.org)이 지원하는 비디오 파일을
+터미널에서 실시간 재생한다. 디코딩은 [tcamviewer](https://github.com/wkqco33/tcamviewer)
+라이브러리(FFmpeg 기반 C++ 코어)가 담당한다. 오디오는 출력되지 않는다.
+
+```bash
+tdraw play video.mp4
+
+# 스트림 끝에서 처음부터 반복 재생
+tdraw play --loop video.mp4
+
+# 너비 60열, 256색 모드
+tdraw play -w 60 --color 256 video.mp4
+```
+
+비디오 재생은 CGO가 필요해 기본 빌드에는 포함되어 있지 않다. 소스에서 빌드하려면
+먼저 tcamviewer 코어 라이브러리를 빌드한 뒤 `task build:video` 를 실행한다.
+`task build:video` 는 로컬 tcamviewer 체크아웃을 go.work로 자동 연결한다
+(go.work 는 커밋되지 않는다).
+
+```bash
+# 1. tcamviewer 코어 라이브러리 빌드 (../tcamviewer 위치)
+git clone https://github.com/wkqco33/tcamviewer ../tcamviewer
+cd ../tcamviewer && task build:core
+
+# 2. 비디오 재생 포함 tdraw 빌드
+cd ../tdraw && task build:video
+```
+
+`go install`/릴리스 바이너리는 비디오 재생이 빠져 있으며, `tdraw play` 실행 시
+안내 메시지가 출력된다.
 
 ### 셸 자동 완성
 

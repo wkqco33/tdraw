@@ -21,14 +21,32 @@ tasks:
       - task: build
 
   build:
-    desc: 현재 플랫폼용 바이너리 빌드
+    desc: 현재 플랫폼용 바이너리 빌드 (비디오 재생 미포함)
     cmds:
       - "{{.GO}} build {{.GOFLAGS}} -ldflags \"{{.LDFLAGS}}\" -o {{.BIN}} ./cmd/tdraw"
+
+  setup:video:
+    desc: 비디오 빌드/테스트용 go.work 구성 (../tcamviewer 체크아웃 필요)
+    cmds:
+      - test -f go.work || go work init
+      - go work use . ../tcamviewer
+
+  build:video:
+    desc: 비디오 재생(tcamviewer) 포함 빌드 — ../tcamviewer 가 빌드되어 있어야 한다
+    deps: [setup:video]
+    cmds:
+      - "{{.GO}} build -tags tcamviewer {{.GOFLAGS}} -ldflags \"{{.LDFLAGS}}\" -o {{.BIN}} ./cmd/tdraw"
 
   test:
     desc: 테스트 실행
     cmds:
       - "{{.GO}} test ./... -v"
+
+  test:video:
+    desc: 비디오 재생(tcamviewer 연동) 포함 테스트 실행
+    deps: [setup:video]
+    cmds:
+      - "{{.GO}} test -tags tcamviewer ./... -v"
 
   fmt:
     desc: 코드 포맷

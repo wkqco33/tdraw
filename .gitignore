@@ -121,3 +121,10 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/go,visualstudiocode,linux,macos,windows
+
+# 로컬 개발: 비디오 재생(tcamviewer) 소스 연결용 워크스페이스
+go.work
+go.work.sum
+
+# 로컬 에디터/LSP 설정 (gopls buildFlags 등)
+.pi-lens.json
