@@ -26,13 +26,13 @@ tasks:
       - "{{.GO}} build {{.GOFLAGS}} -ldflags \"{{.LDFLAGS}}\" -o {{.BIN}} ./cmd/tdraw"
 
   setup:video:
-    desc: 비디오 빌드/테스트용 go.work 구성 (../tcamviewer 체크아웃 필요)
+    desc: 비디오 빌드/테스트용 go.work 구성 (tcamviewer 체크아웃 필요, 기본 ../tcamviewer)
     cmds:
       - test -f go.work || go work init
-      - go work use . ../tcamviewer
+      - go work use . "${TCAMVIEWER_DIR:-../tcamviewer}"
 
   build:video:
-    desc: 비디오 재생(tcamviewer) 포함 빌드 — ../tcamviewer 가 빌드되어 있어야 한다
+    desc: 비디오 재생(tcamviewer) 포함 빌드 — tcamviewer 코어가 빌드되어 있어야 한다
     deps: [setup:video]
     cmds:
       - "{{.GO}} build -tags tcamviewer {{.GOFLAGS}} -ldflags \"{{.LDFLAGS}}\" -o {{.BIN}} ./cmd/tdraw"
@@ -58,8 +58,43 @@ tasks:
     cmds:
       - "{{.GO}} vet ./..."
 
+  release-plain:
+    desc: PPM용 darwin/windows 아카이브와 체크섬을 dist/ 에 생성 (순수 Go, 비디오 미포함)
+    deps: [clean-dist]
+    cmds:
+      - mkdir -p {{.DISTDIR}}
+      - |
+        for platform in darwin/amd64 darwin/arm64 windows/amd64; do
+          os=${platform%/*}
+          arch=${platform#*/}
+          binary_name="{{.BIN}}"
+          archive_ext=".tar.gz"
+          if [ "$os" = "windows" ]; then
+            binary_name="{{.BIN}}.exe"
+            archive_ext=".zip"
+          fi
+
+          binary="{{.DISTDIR}}/$binary_name"
+          archive="{{.DISTDIR}}/{{.BIN}}_${os}_${arch}${archive_ext}"
+          echo "빌드: $archive"
+          GOOS=$os GOARCH=$arch {{.GO}} build {{.GOFLAGS}} -ldflags "{{.LDFLAGS}}" -o "$binary" ./cmd/tdraw
+
+          if [ "$os" = "windows" ]; then
+            zip -q -j "$archive" "$binary"
+            unzip -tq "$archive"
+          else
+            tar -czf "$archive" -C "{{.DISTDIR}}" "$binary_name"
+            tar -tzf "$archive" >/dev/null
+          fi
+
+          (cd "{{.DISTDIR}}" && sha256sum "$(basename "$archive")" > "$(basename "$archive").sha256")
+          rm -f "$binary"
+        done
+      - 'echo "완료: {{.DISTDIR}}/"'
+      - ls -lh {{.DISTDIR}}/
+
   release:
-    desc: PPM용 플랫폼별 아카이브와 SHA-256 체크섬을 dist/ 에 생성
+    desc: PPM용 플랫폼별 아카이브와 SHA-256 체크섬을 dist/ 에 생성 (linux는 비디오 미포함)
     deps: [clean-dist]
     cmds:
       - mkdir -p {{.DISTDIR}}

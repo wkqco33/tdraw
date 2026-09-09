@@ -197,10 +197,13 @@ tdraw play --loop video.mp4
 tdraw play -w 60 --color 256 video.mp4
 ```
 
-비디오 재생은 CGO가 필요해 기본 빌드에는 포함되어 있지 않다. 소스에서 빌드하려면
-먼저 tcamviewer 코어 라이브러리를 빌드한 뒤 `task build:video` 를 실행한다.
-`task build:video` 는 로컬 tcamviewer 체크아웃을 go.work로 자동 연결한다
-(go.work 는 커밋되지 않는다).
+비디오 재생은 CGO가 필요하다. **릴리스 Linux 바이너리에는 비디오 재생이 포함되어
+있으며**, FFmpeg 런타임 라이브러리가 필요하다(대부분의 배포판에 기본 설치되어
+있다. 없다면 `sudo apt install ffmpeg`).
+
+소스에서 빌드하려면 먼저 tcamviewer 코어 라이브러리를 빌드한 뒤
+`task build:video` 를 실행한다. `task build:video` 는 로컬 tcamviewer
+체크아웃을 go.work로 자동 연결한다(go.work 는 커밋되지 않는다).
 
 ```bash
 # 1. tcamviewer 코어 라이브러리 빌드 (../tcamviewer 위치)
@@ -211,8 +214,8 @@ cd ../tcamviewer && task build:core
 cd ../tdraw && task build:video
 ```
 
-`go install`/릴리스 바이너리는 비디오 재생이 빠져 있으며, `tdraw play` 실행 시
-안내 메시지가 출력된다.
+`go install` 바이너리와 macOS/Windows 릴리스 바이너리는 비디오 재생이 빠져
+있으며, `tdraw play` 실행 시 안내 메시지가 출력된다.
 
 ### 셸 자동 완성
 

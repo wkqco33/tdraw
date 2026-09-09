@@ -42,3 +42,47 @@ jobs:
 
       - name: 정적 분석
         run: task vet
+
+  test-video:
+    name: Test (video integration, linux)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: tcamviewer 체크아웃
+        uses: actions/checkout@v4
+        with:
+          repository: wkqco33/tcamviewer
+          ref: v0.2.1
+          path: tcamviewer
+
+      - name: FFmpeg 개발 라이브러리 설치
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libavcodec-dev libavformat-dev libswscale-dev libavutil-dev
+
+      - name: Go 설치
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Task 설치
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 의존성 다운로드
+        run: go mod download
+
+      - name: tcamviewer 코어 빌드
+        run: |
+          cmake -S tcamviewer -B tcamviewer/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build tcamviewer/build --parallel
+
+      - name: 비디오 연동 테스트
+        env:
+          TCAMVIEWER_DIR: ./tcamviewer
+        run: task test:video

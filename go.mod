@@ -10,6 +10,6 @@ require (
 )
 
 require (
-	github.com/wkqco33/tcamviewer v0.2.0
+	github.com/wkqco33/tcamviewer v0.2.1
 	golang.org/x/sys v0.42.0 // indirect
 )

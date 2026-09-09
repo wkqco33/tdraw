@@ -8,11 +8,14 @@ on:
 permissions:
   contents: write
 
-jobs:
-  release:
-    name: Release
-    runs-on: ubuntu-latest
+env:
+  # 비디오 재생에 사용하는 tcamviewer 버전. 바인딩 변경 시 함께 올린다.
+  TCAMVIEWER_REF: v0.2.1
 
+jobs:
+  test:
+    name: 테스트 (순수 Go)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,7 +24,7 @@ jobs:
       - name: Go 설치
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod  # go.mod의 go 지시어(1.26.1) 기준 설치
+          go-version-file: go.mod
           cache: true
 
       - name: Task 설치
@@ -36,8 +39,167 @@ jobs:
       - name: 테스트
         run: task test
 
-      - name: 크로스 플랫폼 빌드
-        run: task release
+      - name: 정적 분석
+        run: task vet
+
+  test-video:
+    name: 테스트 (비디오 연동)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: tcamviewer 체크아웃
+        uses: actions/checkout@v4
+        with:
+          repository: wkqco33/tcamviewer
+          ref: ${{ env.TCAMVIEWER_REF }}
+          path: tcamviewer
+
+      - name: FFmpeg 개발 라이브러리 설치
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libavcodec-dev libavformat-dev libswscale-dev libavutil-dev
+
+      - name: Go 설치
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Task 설치
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 의존성 다운로드
+        run: go mod download
+
+      - name: tcamviewer 코어 빌드
+        run: |
+          cmake -S tcamviewer -B tcamviewer/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build tcamviewer/build --parallel
+
+      - name: 비디오 연동 테스트
+        env:
+          TCAMVIEWER_DIR: ./tcamviewer
+        run: task test:video
+
+  build-linux-video:
+    name: Linux 바이너리 (비디오 포함, ${{ matrix.arch }})
+    needs: [test, test-video]
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runs-on: ubuntu-latest
+          - arch: arm64
+            runs-on: ubuntu-24.04-arm  # 공개 저장소 무료 arm64 러너 (네이티브 빌드)
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # git describe 를 위해 전체 히스토리 필요
+
+      - name: tcamviewer 체크아웃
+        uses: actions/checkout@v4
+        with:
+          repository: wkqco33/tcamviewer
+          ref: ${{ env.TCAMVIEWER_REF }}
+          path: tcamviewer
+
+      - name: FFmpeg 개발 라이브러리 설치
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libavcodec-dev libavformat-dev libswscale-dev libavutil-dev
+
+      - name: Go 설치
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Task 설치
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 의존성 다운로드
+        run: go mod download
+
+      # 정적 링크: libtcamviewer.a 를 바이너리에 포함한다(빌드머신 rpath 문제 회피).
+      # -ltcamviewer 가 .so 대신 .a 를 쓰도록 링크 전에 .so 를 제거한다.
+      # FFmpeg 공용 라이브러리는 시스템 것을 사용하므로 실행 머신에 ffmpeg 런타임이 필요하다.
+      - name: tcamviewer 코어 빌드 (정적 링크용)
+        run: |
+          cmake -S tcamviewer -B tcamviewer/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build tcamviewer/build --parallel
+          rm tcamviewer/build/libtcamviewer.so
+
+      - name: 비디오 포함 바이너리 빌드
+        env:
+          TCAMVIEWER_DIR: ./tcamviewer
+        run: task build:video
+
+      - name: 패키징
+        run: |
+          mkdir -p dist
+          tar -czf "dist/tdraw_linux_${{ matrix.arch }}.tar.gz" tdraw
+          (cd dist && sha256sum "tdraw_linux_${{ matrix.arch }}.tar.gz" > "tdraw_linux_${{ matrix.arch }}.tar.gz.sha256")
+          ls -lh dist/
+
+      - name: 아티팩트 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-linux-${{ matrix.arch }}
+          path: dist/*
+
+  build-plain:
+    name: 크로스 플랫폼 바이너리 (darwin/windows, 순수 Go)
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Go 설치
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Task 설치
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 의존성 다운로드
+        run: go mod download
+
+      - name: darwin/windows 빌드
+        run: task release-plain
+
+      - name: 아티팩트 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-plain
+          path: dist/*
+
+  release:
+    name: GitHub Release 생성
+    needs: [build-linux-video, build-plain]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 아티팩트 다운로드
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
 
       - name: GitHub Release 생성 및 바이너리 업로드
         uses: softprops/action-gh-release@v2
