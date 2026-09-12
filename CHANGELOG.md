@@ -7,6 +7,16 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-13
+
+### Added
+- 전역 환경 설정 관리 패키지 (`config`): OS 표준 디렉터리 기반 JSON 설정 로드, 저장 및 점 표기법(`dot-notation`) 키/값 조회·수정.
+- CLI `config` 서브커맨드 (`init`, `path`, `show`, `get`, `set`) 추가.
+- 환경변수 `TDRAW_CONFIG`를 통한 설정 파일 경로 재정의 지원.
+- 기본 플래그(`--width`, `--color`, `--quiet`, `--no-meta`) 및 서브커맨드(`play`, `find`, `ask`, `agent`, `ocr`, `index`)에 설정값 연동.
+- `config` 패키지 및 서브커맨드 단위 테스트 추가.
+- `wcli` CLI 프레임워크 라이브러리를 `v0.2.3`으로 업데이트.
+
 ## [0.4.0] - 2026-09-13
 
 ### Security
