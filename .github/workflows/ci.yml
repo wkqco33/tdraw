@@ -44,6 +44,7 @@ jobs:
         run: task vet
 
       - name: 코드 포맷 검사
+        if: runner.os == 'Linux'
         run: test -z "$(gofmt -l .)"
 
   test-video:
