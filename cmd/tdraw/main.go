@@ -39,12 +39,18 @@ const metaReserveRows = 9
 
 // errFailed는 처리 실패를 알리는 센티넬 에러다. SilenceErrors로 자동 출력이
 // 억제되므로 메시지는 호출부에서 직접 출력하고, main은 종료 코드 판정에만 사용한다.
-var errFailed = errors.New("처리 실패")
+var (
+	errFailed = errors.New("처리 실패")
+	errUsage  = errors.New("사용법 오류")
+)
 
 func main() {
 	var (
 		width      int
 		colorMode  string
+		noColor    bool
+		quiet      bool
+		noMeta     bool
 		verbose    bool
 		askModel   string
 		ollamaURL  string
@@ -66,21 +72,35 @@ func main() {
 		playColor  string
 	)
 
+	defaultColor := "truecolor"
+	if os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {
+		defaultColor = "gray"
+	}
+
 	root := &wcli.Command{
 		Use:     "tdraw [옵션] <이미지파일>...",
 		Short:   "이미지를 터미널에 렌더링하는 CLI",
-		Long:    "JPEG, PNG, GIF, WebP, BMP, PGM(PPM/PBM) 이미지를 터미널에 컬러로 출력한다.\nGIF는 애니메이션으로 무한 반복 재생하며 Ctrl+C로 종료한다.",
+		Long:    "JPEG, PNG, GIF, WebP, BMP, PGM(PPM/PBM) 이미지를 터미널에 컬러로 출력한다.\nGIF는 애니메이션으로 무한 반복 재생하며 Ctrl+C로 종료한다.\n이미지 경로에 '-'를 지정하면 표준 입력(stdin)에서 이미지를 읽는다.",
 		Version: "tdraw " + version,
 		// 파일별 에러는 직접 출력하므로 wcli의 자동 에러 출력을 끈다.
 		SilenceErrors: true,
 		Run: func(ctx *wcli.Context) error {
+			if noColor {
+				colorMode = "gray"
+			}
+			if quiet {
+				noMeta = true
+			}
 			setupLogger(verbose)
-			return run(ctx, width, colorMode)
+			return run(ctx, width, colorMode, noMeta, quiet)
 		},
 	}
 
 	root.Flags().IntVar(&width, "width", "w", 0, "출력 너비 (열 수, 기본값: 터미널 너비)")
-	root.Flags().StringVar(&colorMode, "color", "c", "truecolor", "컬러 모드: truecolor | 256 | gray")
+	root.Flags().StringVar(&colorMode, "color", "c", defaultColor, "컬러 모드: truecolor | 256 | gray")
+	root.Flags().BoolVar(&noColor, "no-color", "", false, "컬러 출력 비활성화 (gray 모드 적용)")
+	root.Flags().BoolVar(&quiet, "quiet", "q", false, "진행률 및 보조 메시지 억제")
+	root.Flags().BoolVar(&noMeta, "no-meta", "", false, "메타데이터 정보 박스 출력 생략")
 	root.Flags().BoolVar(&verbose, "verbose", "V", false, "상세 진단 로그 출력 (stderr)")
 	root.Flags().SetValidation("color", validateColorMode)
 
@@ -93,10 +113,14 @@ func main() {
 	root.AddCommand(newPlayCommand(&playLoop, &playWidth, &playColor))
 
 	if err := root.Execute(os.Args[1:]); err != nil {
+		if errors.Is(err, errUsage) {
+			os.Exit(2)
+		}
 		// 파일별 상세 에러는 run()에서 이미 출력했으므로(errFailed),
 		// 그 외 프레임워크 레벨 에러(플래그 파싱/검증 등)만 여기서 출력한다.
 		if !errors.Is(err, errFailed) {
 			rich.Fprintln(os.Stderr, "[red][bold]오류:[/bold] %s[/red]", err.Error())
+			os.Exit(2)
 		}
 		os.Exit(1)
 	}
@@ -109,7 +133,7 @@ func newAskCommand(model, ollamaURL *string, jsonOut *bool) *wcli.Command {
 		Long:  "Ollama의 Vision 모델에 이미지를 전달하고 자연어 질문을 수행한다.",
 		Run: func(ctx *wcli.Context) error {
 			if len(ctx.Args) < 2 {
-				return errors.New("이미지 파일과 질문을 지정하세요 (예: tdraw ask photo.jpg \"무엇이 보이나요?\")")
+				return fmt.Errorf("%w: 이미지 파일과 질문을 지정하세요 (예: tdraw ask photo.jpg \"무엇이 보이나요?\")", errUsage)
 			}
 
 			configuredModel := *model
@@ -121,9 +145,16 @@ func newAskCommand(model, ollamaURL *string, jsonOut *bool) *wcli.Command {
 				configuredURL = envOrDefault("TDRAW_OLLAMA_URL", "http://localhost:11434/v1")
 			}
 
+			reqCtx := ctx.Context
+			if _, ok := reqCtx.Deadline(); !ok {
+				var cancel context.CancelFunc
+				reqCtx, cancel = context.WithTimeout(reqCtx, 60*time.Second)
+				defer cancel()
+			}
+
 			client := ollama.New(ollama.Config{BaseURL: configuredURL})
 			question := strings.Join(ctx.Args[1:], " ")
-			answer, err := vision.AskFile(ctx.Context, client, configuredModel, ctx.Args[0], question)
+			answer, err := vision.AskFile(reqCtx, client, configuredModel, ctx.Args[0], question)
 			if err != nil {
 				return err
 			}
@@ -148,7 +179,7 @@ func newAgentCommand(model, ollamaURL *string, jsonOut *bool) *wcli.Command {
 		Long:  "이미지를 분석하고 필요한 경우 읽기 전용 이미지 도구를 호출한다.",
 		Run: func(ctx *wcli.Context) error {
 			if len(ctx.Args) < 2 {
-				return errors.New("이미지 파일과 요청을 지정하세요 (예: tdraw agent photo.jpg \"크기와 내용을 알려줘\")")
+				return fmt.Errorf("%w: 이미지 파일과 요청을 지정하세요 (예: tdraw agent photo.jpg \"크기와 내용을 알려줘\")", errUsage)
 			}
 			configuredModel := *model
 			if configuredModel == "" {
@@ -159,9 +190,16 @@ func newAgentCommand(model, ollamaURL *string, jsonOut *bool) *wcli.Command {
 				configuredURL = envOrDefault("TDRAW_OLLAMA_URL", "http://localhost:11434/v1")
 			}
 
+			reqCtx := ctx.Context
+			if _, ok := reqCtx.Deadline(); !ok {
+				var cancel context.CancelFunc
+				reqCtx, cancel = context.WithTimeout(reqCtx, 60*time.Second)
+				defer cancel()
+			}
+
 			client := ollama.New(ollama.Config{BaseURL: configuredURL})
 			request := strings.Join(ctx.Args[1:], " ")
-			answer, err := vision.RunAgentFile(ctx.Context, client, configuredModel, ctx.Args[0], request)
+			answer, err := vision.RunAgentFile(reqCtx, client, configuredModel, ctx.Args[0], request)
 			if err != nil {
 				return err
 			}
@@ -186,7 +224,7 @@ func newOCRCommand(model, ollamaURL *string, jsonOut *bool) *wcli.Command {
 		Long:  "이미지의 텍스트를 줄바꿈과 읽기 순서를 유지해 추출한다.",
 		Run: func(ctx *wcli.Context) error {
 			if len(ctx.Args) != 1 {
-				return errors.New("이미지 파일을 하나 지정하세요 (예: tdraw ocr screenshot.png)")
+				return fmt.Errorf("%w: 이미지 파일을 하나 지정하세요 (예: tdraw ocr screenshot.png)", errUsage)
 			}
 			configuredModel := *model
 			if configuredModel == "" {
@@ -197,8 +235,15 @@ func newOCRCommand(model, ollamaURL *string, jsonOut *bool) *wcli.Command {
 				configuredURL = envOrDefault("TDRAW_OLLAMA_URL", "http://localhost:11434/v1")
 			}
 
+			reqCtx := ctx.Context
+			if _, ok := reqCtx.Deadline(); !ok {
+				var cancel context.CancelFunc
+				reqCtx, cancel = context.WithTimeout(reqCtx, 60*time.Second)
+				defer cancel()
+			}
+
 			client := ollama.New(ollama.Config{BaseURL: configuredURL})
-			text, err := vision.OCRFile(ctx.Context, client, configuredModel, ctx.Args[0])
+			text, err := vision.OCRFile(reqCtx, client, configuredModel, ctx.Args[0])
 			if err != nil {
 				return err
 			}
@@ -223,7 +268,7 @@ func newIndexCommand(model, ollamaURL, output *string) *wcli.Command {
 		Long:  "디렉터리의 이미지를 Ollama Vision으로 분석해 로컬 JSON 인덱스를 생성한다.",
 		Run: func(ctx *wcli.Context) error {
 			if len(ctx.Args) != 1 {
-				return errors.New("인덱싱할 디렉터리를 하나 지정하세요")
+				return fmt.Errorf("%w: 인덱싱할 디렉터리를 하나 지정하세요", errUsage)
 			}
 			root := ctx.Args[0]
 			indexPath := *output
@@ -265,7 +310,7 @@ func newFindCommand(indexPath *string, limit *int, jsonOut *bool) *wcli.Command 
 		Long:  "로컬 이미지 인덱스의 경로와 Vision 설명을 대상으로 검색한다.",
 		Run: func(ctx *wcli.Context) error {
 			if len(ctx.Args) < 2 {
-				return errors.New("검색할 디렉터리와 검색어를 지정하세요")
+				return fmt.Errorf("%w: 검색할 디렉터리와 검색어를 지정하세요", errUsage)
 			}
 			path := *indexPath
 			if path == "" {
@@ -303,11 +348,11 @@ func envOrDefault(name, fallback string) string {
 	return fallback
 }
 
-func run(ctx *wcli.Context, width int, colorMode string) error {
+func run(ctx *wcli.Context, width int, colorMode string, noMeta, quiet bool) error {
 	args := ctx.Args
 	if len(args) == 0 {
 		rich.Fprintln(os.Stderr, "[red]이미지 파일을 지정하세요 (도움말: tdraw -h)[/red]")
-		return errFailed
+		return errUsage
 	}
 
 	mode := parseColorMode(colorMode)
@@ -330,8 +375,12 @@ func run(ctx *wcli.Context, width int, colorMode string) error {
 		if i > 0 {
 			fmt.Println()
 		}
-		if err := showImage(sigCtx, path, targetW, targetH, mode); err != nil {
-			rich.Fprintln(os.Stderr, "[red]오류 (%s): %s[/red]", filepath.Base(path), err.Error())
+		if err := showImage(sigCtx, path, targetW, targetH, mode, noMeta, quiet); err != nil {
+			displayName := filepath.Base(path)
+			if path == "-" {
+				displayName = "stdin"
+			}
+			rich.Fprintln(os.Stderr, "[red]오류 (%s): %s[/red]", displayName, err.Error())
 			failed = true
 		}
 		if sigCtx.Err() != nil {
@@ -345,64 +394,88 @@ func run(ctx *wcli.Context, width int, colorMode string) error {
 	return nil
 }
 
-func showImage(ctx context.Context, path string, targetW, targetH int, mode render.ColorMode) error {
-	// GIF는 애니메이션으로 재생
+func showImage(ctx context.Context, path string, targetW, targetH int, mode render.ColorMode, noMeta, quiet bool) error {
+	// GIF는 애니메이션으로 재생 (파일 확장자가 .gif인 경우)
 	if strings.ToLower(filepath.Ext(path)) == ".gif" {
-		return showGIF(ctx, path, targetW, targetH, mode)
+		return showGIF(ctx, path, targetW, targetH, mode, noMeta, quiet)
 	}
 
 	name := filepath.Base(path)
+	if path == "-" {
+		name = "stdin"
+	}
 
 	// 진행 표시는 stderr로 출력해 stdout(이미지) 파이프를 오염시키지 않는다.
-	sp := rich.NewSpinner(os.Stderr)
-	sp.Start("이미지 로딩 중")
+	useSpinner := !quiet && isTTY(os.Stderr) && os.Getenv("TERM") != "dumb" && os.Getenv("NO_COLOR") == ""
+	var sp *rich.Spinner
+	if useSpinner {
+		sp = rich.NewSpinner(os.Stderr)
+		sp.Start("이미지 로딩 중")
+	}
 	t0 := time.Now()
 	info, err := imgutil.Load(path)
 	if err != nil {
-		sp.Stop("")
+		if sp != nil {
+			sp.Stop("")
+		}
 		return err
 	}
 	logging.Debug("%s 디코드: %s %dx%d (%v)", name, info.Format, info.Width, info.Height, time.Since(t0))
 
-	sp.UpdateText("리사이즈 중")
+	if sp != nil {
+		sp.UpdateText("리사이즈 중")
+	}
 	t1 := time.Now()
 	resized := imgutil.Resize(info.Image, targetW, targetH)
-	sp.Stop("")
+	if sp != nil {
+		sp.Stop("")
+	}
 
 	rb := resized.Bounds()
 	logging.Debug("%s 리사이즈: %dx%d (%v)", name, rb.Dx(), rb.Dy(), time.Since(t1))
 
-	// /2: 반블록이므로 출력 높이는 실제 터미널 행 수의 절반
-	printMetaBox("📄 "+name, "cyan",
-		info.Format, info.Width, info.Height, rb.Dx(), rb.Dy()/2, -1)
+	// 메타 박스는 stdout이 TTY이고 no-meta가 아닐 때만 출력
+	if !noMeta && isTTY(os.Stdout) {
+		printMetaBox("📄 "+name, "cyan",
+			info.Format, info.Width, info.Height, rb.Dx(), rb.Dy()/2, -1)
+	}
 
 	render.Render(os.Stdout, resized, mode)
 	return nil
 }
 
-func showGIF(ctx context.Context, path string, targetW, targetH int, mode render.ColorMode) error {
+func showGIF(ctx context.Context, path string, targetW, targetH int, mode render.ColorMode, noMeta, quiet bool) error {
 	name := filepath.Base(path)
+	if path == "-" {
+		name = "stdin"
+	}
 
-	sp := rich.NewSpinner(os.Stderr)
-	sp.Start("GIF 디코딩 중")
+	useSpinner := !quiet && isTTY(os.Stderr) && os.Getenv("TERM") != "dumb" && os.Getenv("NO_COLOR") == ""
+	var sp *rich.Spinner
+	if useSpinner {
+		sp = rich.NewSpinner(os.Stderr)
+		sp.Start("GIF 디코딩 중")
+	}
 	t0 := time.Now()
 	anim, err := imgutil.LoadGIF(path)
 	if err != nil {
-		sp.Stop("")
+		if sp != nil {
+			sp.Stop("")
+		}
 		return err
 	}
-	sp.Stop("")
+	if sp != nil {
+		sp.Stop("")
+	}
 	logging.Debug("%s GIF 디코드: %dx%d, 프레임 %d개 (%v)", name, anim.Width, anim.Height, len(anim.Frames), time.Since(t0))
 
-	// 모든 프레임을 동일한 크기로 리사이즈 (캔버스 크기가 같으므로 결과도 동일).
-	// 프레임이 많아 체감 지연이 있으므로 진행률을 ProgressBar로 표시한다(stderr).
 	frames := make([]image.Image, len(anim.Frames))
 	pb := rich.NewProgressBar(len(anim.Frames))
 	pb.Width = 24
 	pb.FillColor = "magenta"
 	pb.EmptyColor = "dim"
 	pb.ShowCounter = true
-	tty := isTTY(os.Stderr)
+	tty := !quiet && isTTY(os.Stderr)
 	t1 := time.Now()
 	for i, f := range anim.Frames {
 		frames[i] = imgutil.Resize(f, targetW, targetH)
@@ -414,14 +487,16 @@ func showGIF(ctx context.Context, path string, targetW, targetH int, mode render
 		fmt.Fprint(os.Stderr, "\r\033[K") // 진행바가 있던 줄을 지운다
 	}
 
-	if len(frames) == 0 { // LoadGIF가 막지만 방어적으로 한 번 더 확인
+	if len(frames) == 0 {
 		return fmt.Errorf("GIF에 표시할 프레임이 없습니다")
 	}
 	rb := frames[0].Bounds()
 	logging.Debug("%s 프레임 리사이즈: %dx%d x%d개 (%v)", name, rb.Dx(), rb.Dy(), len(frames), time.Since(t1))
 
-	printMetaBox("🎬 "+name, "magenta",
-		"GIF", anim.Width, anim.Height, rb.Dx(), rb.Dy()/2, len(frames))
+	if !noMeta && isTTY(os.Stdout) {
+		printMetaBox("🎬 "+name, "magenta",
+			"GIF", anim.Width, anim.Height, rb.Dx(), rb.Dy()/2, len(frames))
+	}
 
 	render.PlayGIF(ctx, os.Stdout, frames, anim.Delays, mode)
 	return nil
@@ -513,7 +588,7 @@ func newPlayCommand(loop *bool, width *int, colorMode *string) *wcli.Command {
 			"(task build:video). 오디오는 출력되지 않는다.",
 		Run: func(ctx *wcli.Context) error {
 			if len(ctx.Args) != 1 {
-				return errors.New("비디오 파일을 하나 지정하세요 (예: tdraw play clip.mp4)")
+				return fmt.Errorf("%w: 비디오 파일을 하나 지정하세요 (예: tdraw play clip.mp4)", errUsage)
 			}
 			return runPlay(ctx, *loop, *width, *colorMode)
 		},

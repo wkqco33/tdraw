@@ -52,7 +52,7 @@ func (t *imageMetadataTool) Definition() llm.Tool {
 }
 
 func (t *imageMetadataTool) Execute(_ context.Context, _ string) (string, error) {
-	info, err := imgutil.Load(t.path)
+	info, err := imgutil.LoadConfig(t.path)
 	if err != nil {
 		return "", err
 	}

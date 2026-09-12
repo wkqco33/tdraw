@@ -127,6 +127,41 @@ func TestLoad_PNG(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_PNG(t *testing.T) {
+	path := writeTempPNG(t, 64, 48)
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("PNG Config 로드 실패: %v", err)
+	}
+	if cfg.Width != 64 || cfg.Height != 48 || cfg.Format != "png" {
+		t.Errorf("unexpected cfg: %+v", cfg)
+	}
+}
+
+func TestLoadConfig_FileNotFound(t *testing.T) {
+	_, err := LoadConfig("/nonexistent/file.png")
+	if err == nil {
+		t.Error("없는 파일에 대해 에러가 발생해야 함")
+	}
+}
+
+func TestLoadReader_PNG(t *testing.T) {
+	path := writeTempPNG(t, 32, 16)
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	info, err := LoadReader(f, "test-stream")
+	if err != nil {
+		t.Fatalf("LoadReader 실패: %v", err)
+	}
+	if info.Width != 32 || info.Height != 16 || info.Path != "test-stream" {
+		t.Errorf("unexpected info: %+v", info)
+	}
+}
+
 // --- LoadGIF 테스트 ---
 
 // writeTempGIF는 nFrames 프레임짜리 임시 애니메이션 GIF를 만든다.

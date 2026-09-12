@@ -55,6 +55,10 @@ GitHub Release에 `dist/`의 아카이브와 체크섬 파일을 함께 업로�
 
 ```bash
 tdraw [옵션] <이미지파일> [이미지파일...]
+
+# 표준 입력(stdin)에서 이미지 읽기
+cat photo.jpg | tdraw -
+curl -sL https://example.com/sample.png | tdraw -
 ```
 
 ### 옵션
@@ -65,6 +69,10 @@ CLI는 [wcli](https://github.com/wkqco33/wcli) 프레임워크로 구현되어 �
 | ---- | ------ | ---- |
 | `-w`, `--width int` | 터미널 너비 | 출력 너비 (열 수) |
 | `-c`, `--color string` | `truecolor` | 컬러 모드: `truecolor` \| `256` \| `gray` |
+| `--no-color` | - | 컬러 출력 비활성화 (`gray` 모드 적용, `NO_COLOR` 환경변수 지원) |
+| `-q`, `--quiet` | - | 진행률 및 메타데이터 출력 억제 |
+| `--no-meta` | - | 상단 메타데이터 정보 박스 출력 생략 (비TTY 리다이렉션 시 자동 생략) |
+| `-V`, `--verbose` | - | 상세 진단 로그 출력 (stderr) |
 | `--version` | - | 버전 출력 |
 | `-h`, `--help` | - | 도움말 출력 |
 
@@ -384,3 +392,12 @@ GIF 프레임은 전체 캔버스의 일부 영역만 담고 있어, disposal me
 
 - Go 1.26.1+
 - 터미널의 truecolor 지원 권장 (`COLORTERM=truecolor`)
+
+## 버전 및 기여 가이드
+
+- **버전 규칙**: [Semantic Versioning 2.0.0](https://semver.org/lang/ko/)을 준수합니다. 현재 `0.y.z` 단계로 v1.0.0 이전까지는 공개 API가 안정화되는 과정에서 일부 변경될 수 있습니다.
+- **변경 이력**: 버전별 상세 변경 내역은 [CHANGELOG.md](CHANGELOG.md)를 참고하세요.
+- **기여 가이드**: 버그 제보, 기능 제안 및 풀 리퀘스트 작성 지침은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
+- **보안 정책**: 취약점 제보 방법은 [SECURITY.md](SECURITY.md)를 참고하세요.
+- **AI 에이전트 지침**: 코드베이스 아키텍처 및 TDD 개발 규칙은 [AGENTS.md](AGENTS.md)를 참고하세요.
+

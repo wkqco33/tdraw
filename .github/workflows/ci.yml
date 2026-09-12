@@ -43,6 +43,9 @@ jobs:
       - name: 정적 분석
         run: task vet
 
+      - name: 코드 포맷 검사
+        run: test -z "$(gofmt -l .)"
+
   test-video:
     name: Test (video integration, linux)
     runs-on: ubuntu-latest

@@ -5,11 +5,11 @@ go 1.26.1
 require (
 	github.com/wkqco33/LLM_client_go v0.2.0
 	github.com/wkqco33/wcli v0.2.0
-	golang.org/x/image v0.37.0
+	golang.org/x/image v0.46.0
 	golang.org/x/term v0.41.0
 )
 
 require (
 	github.com/wkqco33/tcamviewer v0.2.1
-	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 )

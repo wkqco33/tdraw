@@ -3,12 +3,10 @@ package imgindex
 import (
 	"fmt"
 	"image"
-	"image/gif"
+	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 	"os"
-	"path/filepath"
-	"strings"
 
 	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/webp"
@@ -27,19 +25,10 @@ func load(path string) (*decodedInfo, error) {
 		return nil, fmt.Errorf("파일 열기 실패: %w", err)
 	}
 	defer f.Close()
-	var img image.Image
-	var format string
-	if strings.EqualFold(filepath.Ext(path), ".gif") {
-		gifInfo, err := gif.DecodeConfig(f)
-		if err != nil {
-			return nil, fmt.Errorf("GIF 디코딩 실패: %w", err)
-		}
-		return &decodedInfo{format: "gif", width: gifInfo.Width, height: gifInfo.Height}, nil
-	}
-	img, format, err = image.Decode(f)
+
+	cfg, format, err := image.DecodeConfig(f)
 	if err != nil {
 		return nil, fmt.Errorf("이미지 디코딩 실패: %w", err)
 	}
-	bounds := img.Bounds()
-	return &decodedInfo{format: format, width: bounds.Dx(), height: bounds.Dy()}, nil
+	return &decodedInfo{format: format, width: cfg.Width, height: cfg.Height}, nil
 }

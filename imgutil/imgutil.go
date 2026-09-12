@@ -6,9 +6,8 @@ import (
 	"image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
 	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	_ "golang.org/x/image/bmp"
@@ -26,35 +25,69 @@ type ImageInfo struct {
 	Image  image.Image
 }
 
-func Load(path string) (*ImageInfo, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("파일 열기 실패: %w", err)
-	}
-	defer f.Close()
+// ImageConfig는 픽셀 데이터 없이 포맷과 크기 메타데이터만 담는다.
+type ImageConfig struct {
+	Path   string
+	Format string
+	Width  int
+	Height int
+}
 
-	ext := strings.ToLower(filepath.Ext(path))
-
-	var img image.Image
-	var format string
-
-	if ext == ".gif" {
-		gifs, err := gif.DecodeAll(f)
-		if err != nil {
-			return nil, fmt.Errorf("GIF 디코딩 실패: %w", err)
-		}
-		img = gifs.Image[0]
-		format = "gif"
+// LoadConfig는 전체 픽셀을 디코딩하지 않고 헤더에서 포맷과 크기만 빠르게 읽는다.
+func LoadConfig(path string) (*ImageConfig, error) {
+	var r io.Reader
+	name := path
+	if path == "-" {
+		r = os.Stdin
+		name = "<stdin>"
 	} else {
-		img, format, err = image.Decode(f)
+		f, err := os.Open(path)
 		if err != nil {
-			return nil, fmt.Errorf("이미지 디코딩 실패: %w", err)
+			return nil, fmt.Errorf("파일 열기 실패: %w", err)
 		}
+		defer f.Close()
+		r = f
+	}
+
+	cfg, format, err := image.DecodeConfig(r)
+	if err != nil {
+		return nil, fmt.Errorf("이미지 설정 디코딩 실패: %w", err)
+	}
+	return &ImageConfig{
+		Path:   name,
+		Format: format,
+		Width:  cfg.Width,
+		Height: cfg.Height,
+	}, nil
+}
+
+func Load(path string) (*ImageInfo, error) {
+	var r io.Reader
+	name := path
+	if path == "-" {
+		r = os.Stdin
+		name = "<stdin>"
+	} else {
+		f, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("파일 열기 실패: %w", err)
+		}
+		defer f.Close()
+		r = f
+	}
+	return LoadReader(r, name)
+}
+
+// LoadReader는 io.Reader에서 이미지를 읽어 디코딩한다.
+func LoadReader(r io.Reader, name string) (*ImageInfo, error) {
+	img, format, err := image.Decode(r)
+	if err != nil {
+		return nil, fmt.Errorf("이미지 디코딩 실패: %w", err)
 	}
 
 	bounds := img.Bounds()
 	return &ImageInfo{
-		Path:   path,
+		Path:   name,
 		Format: format,
 		Width:  bounds.Dx(),
 		Height: bounds.Dy(),
@@ -71,16 +104,24 @@ type GIFAnim struct {
 }
 
 // LoadGIF는 GIF 파일의 모든 프레임을 disposal method에 따라 합성하여 반환한다.
-// 각 프레임은 image.Paletted의 부분 영역만 담고 있으므로 전체 캔버스에 누적
-// 합성한 스냅샷을 만들어야 실제로 보이는 화면이 된다.
 func LoadGIF(path string) (*GIFAnim, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("파일 열기 실패: %w", err)
+	var r io.Reader
+	if path == "-" {
+		r = os.Stdin
+	} else {
+		f, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("파일 열기 실패: %w", err)
+		}
+		defer f.Close()
+		r = f
 	}
-	defer f.Close()
+	return LoadGIFReader(r)
+}
 
-	g, err := gif.DecodeAll(f)
+// LoadGIFReader는 io.Reader에서 GIF 프레임들을 읽어 합성한다.
+func LoadGIFReader(r io.Reader) (*GIFAnim, error) {
+	g, err := gif.DecodeAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("GIF 디코딩 실패: %w", err)
 	}
