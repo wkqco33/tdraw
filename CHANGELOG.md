@@ -7,17 +7,25 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-13
+
 ### Security
 - `golang.org/x/image` 의존성을 `v0.46.0`으로 업데이트하여 보안 취약점 4건 해결 (GO-2026-6222, GO-2026-5061, GO-2026-5031, GO-2026-4961).
 
 ### Added
-- `AGENTS.md`: 에이전트 및 기여자를 위한 아키텍처 및 TDD 개발 가이드라인 추가.
-- `tdraw_test.go`: 최상위 퍼사드 패키지(`tdraw`) 단위 테스트 추가.
+- 표준 입력(`-`)을 통한 파이프 이미지 수신 지원 (`cat photo.jpg | tdraw -`).
+- `NO_COLOR` (https://no-color.org) 및 `TERM=dumb` 환경변수 감지 지원.
+- 표준 CLI 플래그 추가: `--no-color`, `-q`/`--quiet`, `--no-meta`.
+- `AGENTS.md`, `CONTRIBUTING.md`, `SECURITY.md`: 오픈소스 거버넌스 및 에이전트 협업 가이드라인 신설.
+- `tdraw_test.go`, `cmd/tdraw/main_test.go`: 최상위 퍼사드 및 CLI 단위 테스트 추가 (퍼사드 커버리지 93.9% 달성).
 
 ### Changed
-- `imgindex`: 대용량 이미지 인덱싱 시 전체 픽셀 디코딩 대신 `image.DecodeConfig`를 사용하여 메모리 사용량 및 인덱싱 속도 대폭 개선.
-- `cmd/tdraw`: `NO_COLOR` 및 `TERM=dumb` 환경변수 감지 지원, 비TTY 환경 스피너 억제.
-- `cmd/tdraw`: 표준 입력(`-`)을 통한 파이프 이미지 수신 기능 추가.
+- `imgindex`: 대용량 이미지 인덱싱 시 전체 픽셀 디코딩 대신 `image.DecodeConfig`를 사용하여 메모리 사용량 및 속도 대폭 개선.
+- `vision`: `imageMetadataTool`에서 불필요한 전체 이미지 디코딩 대신 헤더 메타데이터 전용 리더 사용.
+- `cmd/tdraw`: 비TTY 환경에서 메타 박스 출력을 자동 생략하여 파이프/리다이렉션 스트림 격리.
+- `cmd/tdraw`: 종료 코드 세분화 (정상 0, 런타임 오류 1, 인자/사용법 오류 2).
+- `cmd/tdraw`: LLM API 요청에 60초 기본 타임아웃 컨텍스트 적용.
+- `ci`: GitHub Actions 워크플로에 `gofmt` 코드 포맷 검사 스텝 추가.
 
 ## [0.3.0] - 2026-09-09
 
