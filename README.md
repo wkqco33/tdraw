@@ -167,6 +167,42 @@ tdraw find ./photos "영수증" --json
 `tdraw index ./photos --output /path/to/index.json`, 검색 인덱스는
 `tdraw find ./photos "검색어" --index /path/to/index.json`으로 변경할 수 있다.
 
+### 설정 관리 (config)
+
+`config` 명령으로 기본 출력 너비, 컬러 모드, AI 모델 등 전역 설정을 관리할 수 있다.
+설정 파일은 플랫폼별 기본 설정 디렉터리(`~/.config/tdraw/config.json`, macOS: `~/Library/Application Support/tdraw/config.json`, Windows: `%AppData%\tdraw\config.json`)에 저장되며, 환경변수 `TDRAW_CONFIG`로 파일 위치를 변경할 수 있다.
+
+```bash
+# 설정 파일 경로 확인
+tdraw config path
+
+# 기본 설정 파일 생성 (이미 존재할 경우 -f/--force 로 덮어쓰기)
+tdraw config init
+
+# 현재 설정 내용 출력
+tdraw config show
+
+# 특정 설정값 조회
+tdraw config get ai.model
+tdraw config get width
+
+# 특정 설정값 변경 및 저장
+tdraw config set ai.model llama3.2-vision
+tdraw config set width 80
+tdraw config set color 256
+```
+
+| 설정 키 | 기본값 | 설명 |
+| ------- | ------ | ---- |
+| `width` | `0` (자동) | 기본 출력 너비 (열 수, 0이면 터미널 너비 자동 감지) |
+| `color` | `truecolor` | 기본 컬러 모드 (`truecolor` \| `256` \| `gray`) |
+| `no_meta` | `false` | 상단 메타데이터 정보 박스 출력 생략 여부 |
+| `quiet` | `false` | 진행률 및 보조 메시지 억제 여부 |
+| `ai.model` | `llava` | 기본 Ollama Vision 모델 |
+| `ai.ollama_url` | `http://localhost:11434/v1` | 기본 Ollama OpenAI 호환 API 주소 |
+| `find.limit` | `20` | `find` 명령의 기본 최대 검색 결과 수 |
+| `play.loop` | `false` | `play` 명령의 비디오 반복 재생 기본값 |
+
 ### 예시
 
 ```bash

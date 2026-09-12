@@ -2,8 +2,8 @@ github.com/wkqco33/LLM_client_go v0.2.0 h1:GsymXI9gFnmykso+gYrMwx3/yOlRY6XdqPzCn
 github.com/wkqco33/LLM_client_go v0.2.0/go.mod h1:Se3UP/dQmR0JKLuTeO4WAeo8Kw8hT9QxdT9JR1uRSTU=
 github.com/wkqco33/tcamviewer v0.2.1 h1:/pASCI0X9Fzol9mriUQNgwm7vmQTgYLIyxSn04jSxaM=
 github.com/wkqco33/tcamviewer v0.2.1/go.mod h1:K8SeLLTSsaGFagquAJTN5Fl/4mCjVpqIze7F6sgcRkU=
-github.com/wkqco33/wcli v0.2.0 h1:f4hbJ8XtNTDXLInnftAaKeJwmWu5VaTa5QxSmrKbGUY=
-github.com/wkqco33/wcli v0.2.0/go.mod h1:4ENGpQ6fBCBNJxfMEYqro1SrosRjrrEreGeJXQsoolo=
+github.com/wkqco33/wcli v0.2.3 h1:ebpHWznoZIY9mhBl8gBAlEUW32DO/4bRUD8bgPflaZc=
+github.com/wkqco33/wcli v0.2.3/go.mod h1:4ENGpQ6fBCBNJxfMEYqro1SrosRjrrEreGeJXQsoolo=
 golang.org/x/image v0.46.0 h1:b1+oYj0Jbp6K5MDT4i4/eZpYlk3V8SJhhDKh6LBHAyQ=
 golang.org/x/image v0.46.0/go.mod h1:3B3W05VGVQyuXucLINLjXKrqISASfi4Xj+iCVkLMwew=
 golang.org/x/sys v0.48.0 h1:bbX/i/6MgT9BVLM9RT1thmxL04yeTAhbEz4SyadbXoo=

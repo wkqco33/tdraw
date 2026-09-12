@@ -18,6 +18,7 @@ import (
 	"github.com/wkqco33/wcli/rich"
 	"golang.org/x/term"
 
+	"github.com/wkqco33/tdraw/config"
 	"github.com/wkqco33/tdraw/imgindex"
 	"github.com/wkqco33/tdraw/imgutil"
 	"github.com/wkqco33/tdraw/render"
@@ -72,7 +73,15 @@ func main() {
 		playColor  string
 	)
 
-	defaultColor := "truecolor"
+	cfg, err := config.Load()
+	if err != nil {
+		cfg = config.DefaultConfig()
+	}
+
+	defaultColor := cfg.Color
+	if defaultColor == "" {
+		defaultColor = "truecolor"
+	}
 	if os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {
 		defaultColor = "gray"
 	}
@@ -96,15 +105,16 @@ func main() {
 		},
 	}
 
-	root.Flags().IntVar(&width, "width", "w", 0, "출력 너비 (열 수, 기본값: 터미널 너비)")
+	root.Flags().IntVar(&width, "width", "w", cfg.Width, "출력 너비 (열 수, 기본값: 터미널 너비)")
 	root.Flags().StringVar(&colorMode, "color", "c", defaultColor, "컬러 모드: truecolor | 256 | gray")
 	root.Flags().BoolVar(&noColor, "no-color", "", false, "컬러 출력 비활성화 (gray 모드 적용)")
-	root.Flags().BoolVar(&quiet, "quiet", "q", false, "진행률 및 보조 메시지 억제")
-	root.Flags().BoolVar(&noMeta, "no-meta", "", false, "메타데이터 정보 박스 출력 생략")
+	root.Flags().BoolVar(&quiet, "quiet", "q", cfg.Quiet, "진행률 및 보조 메시지 억제")
+	root.Flags().BoolVar(&noMeta, "no-meta", "", cfg.NoMeta, "메타데이터 정보 박스 출력 생략")
 	root.Flags().BoolVar(&verbose, "verbose", "V", false, "상세 진단 로그 출력 (stderr)")
 	root.Flags().SetValidation("color", validateColorMode)
 
 	root.AddCommand(wcli.NewCompletionCommand(root))
+	root.AddCommand(newConfigCommand())
 	root.AddCommand(newAskCommand(&askModel, &ollamaURL, &jsonOut))
 	root.AddCommand(newAgentCommand(&agentModel, &agentURL, &agentJSON))
 	root.AddCommand(newOCRCommand(&ocrModel, &ocrURL, &ocrJSON))
@@ -136,14 +146,7 @@ func newAskCommand(model, ollamaURL *string, jsonOut *bool) *wcli.Command {
 				return fmt.Errorf("%w: 이미지 파일과 질문을 지정하세요 (예: tdraw ask photo.jpg \"무엇이 보이나요?\")", errUsage)
 			}
 
-			configuredModel := *model
-			if configuredModel == "" {
-				configuredModel = envOrDefault("TDRAW_LLM_MODEL", "llava")
-			}
-			configuredURL := *ollamaURL
-			if configuredURL == "" {
-				configuredURL = envOrDefault("TDRAW_OLLAMA_URL", "http://localhost:11434/v1")
-			}
+			configuredModel, configuredURL := resolveAIConfig(*model, *ollamaURL)
 
 			reqCtx := ctx.Context
 			if _, ok := reqCtx.Deadline(); !ok {
@@ -166,8 +169,8 @@ func newAskCommand(model, ollamaURL *string, jsonOut *bool) *wcli.Command {
 			return nil
 		},
 	}
-	ask.Flags().StringVar(model, "model", "m", "", "Ollama Vision 모델 (기본값: TDRAW_LLM_MODEL 또는 llava)")
-	ask.Flags().StringVar(ollamaURL, "ollama-url", "", "", "Ollama OpenAI 호환 주소 (기본값: TDRAW_OLLAMA_URL 또는 localhost:11434/v1)")
+	ask.Flags().StringVar(model, "model", "m", "", "Ollama Vision 모델 (기본값: TDRAW_LLM_MODEL 또는 설정값)")
+	ask.Flags().StringVar(ollamaURL, "ollama-url", "", "", "Ollama OpenAI 호환 주소 (기본값: TDRAW_OLLAMA_URL 또는 설정값)")
 	ask.Flags().BoolVar(jsonOut, "json", "j", false, "JSON 형식으로 출력")
 	return ask
 }
@@ -181,14 +184,7 @@ func newAgentCommand(model, ollamaURL *string, jsonOut *bool) *wcli.Command {
 			if len(ctx.Args) < 2 {
 				return fmt.Errorf("%w: 이미지 파일과 요청을 지정하세요 (예: tdraw agent photo.jpg \"크기와 내용을 알려줘\")", errUsage)
 			}
-			configuredModel := *model
-			if configuredModel == "" {
-				configuredModel = envOrDefault("TDRAW_LLM_MODEL", "llava")
-			}
-			configuredURL := *ollamaURL
-			if configuredURL == "" {
-				configuredURL = envOrDefault("TDRAW_OLLAMA_URL", "http://localhost:11434/v1")
-			}
+			configuredModel, configuredURL := resolveAIConfig(*model, *ollamaURL)
 
 			reqCtx := ctx.Context
 			if _, ok := reqCtx.Deadline(); !ok {
@@ -211,8 +207,8 @@ func newAgentCommand(model, ollamaURL *string, jsonOut *bool) *wcli.Command {
 			return nil
 		},
 	}
-	agent.Flags().StringVar(model, "model", "m", "", "Ollama Vision 모델 (기본값: TDRAW_LLM_MODEL 또는 llava)")
-	agent.Flags().StringVar(ollamaURL, "ollama-url", "", "", "Ollama OpenAI 호환 주소 (기본값: TDRAW_OLLAMA_URL 또는 localhost:11434/v1)")
+	agent.Flags().StringVar(model, "model", "m", "", "Ollama Vision 모델 (기본값: TDRAW_LLM_MODEL 또는 설정값)")
+	agent.Flags().StringVar(ollamaURL, "ollama-url", "", "", "Ollama OpenAI 호환 주소 (기본값: TDRAW_OLLAMA_URL 또는 설정값)")
 	agent.Flags().BoolVar(jsonOut, "json", "j", false, "JSON 형식으로 출력")
 	return agent
 }
@@ -226,14 +222,7 @@ func newOCRCommand(model, ollamaURL *string, jsonOut *bool) *wcli.Command {
 			if len(ctx.Args) != 1 {
 				return fmt.Errorf("%w: 이미지 파일을 하나 지정하세요 (예: tdraw ocr screenshot.png)", errUsage)
 			}
-			configuredModel := *model
-			if configuredModel == "" {
-				configuredModel = envOrDefault("TDRAW_LLM_MODEL", "llava")
-			}
-			configuredURL := *ollamaURL
-			if configuredURL == "" {
-				configuredURL = envOrDefault("TDRAW_OLLAMA_URL", "http://localhost:11434/v1")
-			}
+			configuredModel, configuredURL := resolveAIConfig(*model, *ollamaURL)
 
 			reqCtx := ctx.Context
 			if _, ok := reqCtx.Deadline(); !ok {
@@ -255,8 +244,8 @@ func newOCRCommand(model, ollamaURL *string, jsonOut *bool) *wcli.Command {
 			return nil
 		},
 	}
-	ocr.Flags().StringVar(model, "model", "m", "", "Ollama Vision 모델 (기본값: TDRAW_LLM_MODEL 또는 llava)")
-	ocr.Flags().StringVar(ollamaURL, "ollama-url", "", "", "Ollama OpenAI 호환 주소 (기본값: TDRAW_OLLAMA_URL 또는 localhost:11434/v1)")
+	ocr.Flags().StringVar(model, "model", "m", "", "Ollama Vision 모델 (기본값: TDRAW_LLM_MODEL 또는 설정값)")
+	ocr.Flags().StringVar(ollamaURL, "ollama-url", "", "", "Ollama OpenAI 호환 주소 (기본값: TDRAW_OLLAMA_URL 또는 설정값)")
 	ocr.Flags().BoolVar(jsonOut, "json", "j", false, "JSON 형식으로 출력")
 	return ocr
 }
@@ -275,14 +264,7 @@ func newIndexCommand(model, ollamaURL, output *string) *wcli.Command {
 			if indexPath == "" {
 				indexPath = filepath.Join(root, ".tdraw", "index.json")
 			}
-			configuredModel := *model
-			if configuredModel == "" {
-				configuredModel = envOrDefault("TDRAW_LLM_MODEL", "llava")
-			}
-			configuredURL := *ollamaURL
-			if configuredURL == "" {
-				configuredURL = envOrDefault("TDRAW_OLLAMA_URL", "http://localhost:11434/v1")
-			}
+			configuredModel, configuredURL := resolveAIConfig(*model, *ollamaURL)
 			client := ollama.New(ollama.Config{BaseURL: configuredURL})
 			idx, err := imgindex.Build(ctx.Context, root, client, configuredModel, func(path string) {
 				fmt.Fprintf(os.Stderr, "분석 중: %s\n", path)
@@ -320,7 +302,15 @@ func newFindCommand(indexPath *string, limit *int, jsonOut *bool) *wcli.Command 
 			if err != nil {
 				return fmt.Errorf("인덱스 로드 실패: %w (먼저 tdraw index를 실행하세요)", err)
 			}
-			results := idx.Search(strings.Join(ctx.Args[1:], " "), *limit)
+			cfg, _ := config.Load()
+			searchLimit := *limit
+			if searchLimit <= 0 {
+				searchLimit = cfg.Find.Limit
+				if searchLimit <= 0 {
+					searchLimit = 20
+				}
+			}
+			results := idx.Search(strings.Join(ctx.Args[1:], " "), searchLimit)
 			if *jsonOut {
 				data, err := json.Marshal(results)
 				if err != nil {
@@ -346,6 +336,168 @@ func envOrDefault(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func resolveAIConfig(modelFlag, urlFlag string) (string, string) {
+	cfg, _ := config.Load()
+	defaultModel := cfg.AI.Model
+	if defaultModel == "" {
+		defaultModel = "llava"
+	}
+	defaultURL := cfg.AI.OllamaURL
+	if defaultURL == "" {
+		defaultURL = "http://localhost:11434/v1"
+	}
+
+	model := modelFlag
+	if model == "" {
+		model = envOrDefault("TDRAW_LLM_MODEL", defaultModel)
+	}
+	url := urlFlag
+	if url == "" {
+		url = envOrDefault("TDRAW_OLLAMA_URL", defaultURL)
+	}
+	return model, url
+}
+
+func newConfigCommand() *wcli.Command {
+	cfgCmd := &wcli.Command{
+		Use:   "config <서브커맨드>",
+		Short: "tdraw 설정 관리 (init, path, show, set, get)",
+		Long:  "tdraw의 환경 설정을 관리한다.\n서브커맨드: init, path, show, set, get",
+		Run: func(ctx *wcli.Context) error {
+			rich.Fprintln(os.Stderr, "[red]서브커맨드를 지정하세요: init | path | show | set | get (도움말: tdraw config -h)[/red]")
+			return errUsage
+		},
+	}
+	cfgCmd.AddCommand(newConfigInitCommand())
+	cfgCmd.AddCommand(newConfigPathCommand())
+	cfgCmd.AddCommand(newConfigShowCommand())
+	cfgCmd.AddCommand(newConfigGetCommand())
+	cfgCmd.AddCommand(newConfigSetCommand())
+	return cfgCmd
+}
+
+func newConfigInitCommand() *wcli.Command {
+	var force bool
+	initCmd := &wcli.Command{
+		Use:   "init",
+		Short: "기본 설정 파일 생성",
+		Long:  "기본값으로 tdraw 설정 파일을 생성한다. 이미 파일이 존재하면 --force 없이는 덮어쓰지 않는다.",
+		Run: func(ctx *wcli.Context) error {
+			path, err := config.DefaultPath()
+			if err != nil {
+				rich.Fprintln(os.Stderr, "[red]오류:[/red] %s", err.Error())
+				return errFailed
+			}
+			if _, err := os.Stat(path); err == nil && !force {
+				rich.Fprintln(os.Stderr, "[red]오류:[/red] 설정 파일이 이미 존재합니다: %s (덮어쓰려면 --force를 사용하세요)", path)
+				return errFailed
+			}
+			cfg := config.DefaultConfig()
+			if err := cfg.SaveTo(path); err != nil {
+				rich.Fprintln(os.Stderr, "[red]설정 파일 생성 실패:[/red] %s", err.Error())
+				return errFailed
+			}
+			rich.Fprintln(os.Stderr, "[green]설정 파일이 생성되었습니다:[/green] %s", path)
+			return nil
+		},
+	}
+	initCmd.Flags().BoolVar(&force, "force", "f", false, "기존 설정 파일이 있어도 덮어쓰기")
+	return initCmd
+}
+
+func newConfigPathCommand() *wcli.Command {
+	return &wcli.Command{
+		Use:   "path",
+		Short: "설정 파일 경로 출력",
+		Long:  "현재 tdraw가 사용하는 설정 파일의 전체 경로를 출력한다.",
+		Run: func(ctx *wcli.Context) error {
+			path, err := config.DefaultPath()
+			if err != nil {
+				rich.Fprintln(os.Stderr, "[red]오류:[/red] %s", err.Error())
+				return errFailed
+			}
+			fmt.Println(path)
+			return nil
+		},
+	}
+}
+
+func newConfigShowCommand() *wcli.Command {
+	return &wcli.Command{
+		Use:   "show",
+		Short: "현재 설정 출력",
+		Long:  "현재 tdraw 설정을 JSON 형식으로 출력한다.",
+		Run: func(ctx *wcli.Context) error {
+			cfg, err := config.Load()
+			if err != nil {
+				rich.Fprintln(os.Stderr, "[red]설정 로드 실패:[/red] %s", err.Error())
+				return errFailed
+			}
+			data, err := json.MarshalIndent(cfg, "", "  ")
+			if err != nil {
+				rich.Fprintln(os.Stderr, "[red]오류:[/red] %s", err.Error())
+				return errFailed
+			}
+			fmt.Println(string(data))
+			return nil
+		},
+	}
+}
+
+func newConfigGetCommand() *wcli.Command {
+	return &wcli.Command{
+		Use:   "get <키>",
+		Short: "설정 값 조회",
+		Long:  "지정된 키의 현재 설정값을 출력한다 (예: tdraw config get ai.model).",
+		Run: func(ctx *wcli.Context) error {
+			if len(ctx.Args) != 1 {
+				return fmt.Errorf("%w: 조회할 키를 하나 지정하세요 (예: tdraw config get ai.model)", errUsage)
+			}
+			cfg, err := config.Load()
+			if err != nil {
+				rich.Fprintln(os.Stderr, "[red]설정 로드 실패:[/red] %s", err.Error())
+				return errFailed
+			}
+			val, err := cfg.Get(ctx.Args[0])
+			if err != nil {
+				rich.Fprintln(os.Stderr, "[red]오류:[/red] %s", err.Error())
+				return errFailed
+			}
+			fmt.Println(val)
+			return nil
+		},
+	}
+}
+
+func newConfigSetCommand() *wcli.Command {
+	return &wcli.Command{
+		Use:   "set <키> <값>",
+		Short: "설정 값 변경 및 저장",
+		Long:  "지정된 키의 값을 수정하고 설정 파일에 저장한다 (예: tdraw config set ai.model llama3.2-vision).",
+		Run: func(ctx *wcli.Context) error {
+			if len(ctx.Args) != 2 {
+				return fmt.Errorf("%w: 설정할 키와 값을 지정하세요 (예: tdraw config set ai.model llama3.2-vision)", errUsage)
+			}
+			cfg, err := config.Load()
+			if err != nil {
+				rich.Fprintln(os.Stderr, "[red]설정 로드 실패:[/red] %s", err.Error())
+				return errFailed
+			}
+			key, val := ctx.Args[0], ctx.Args[1]
+			if err := cfg.Set(key, val); err != nil {
+				rich.Fprintln(os.Stderr, "[red]오류:[/red] %s", err.Error())
+				return errFailed
+			}
+			if err := cfg.Save(); err != nil {
+				rich.Fprintln(os.Stderr, "[red]설정 저장 실패:[/red] %s", err.Error())
+				return errFailed
+			}
+			rich.Fprintln(os.Stderr, "[green]설정이 저장되었습니다:[/green] %s = %s", key, val)
+			return nil
+		},
+	}
 }
 
 func run(ctx *wcli.Context, width int, colorMode string, noMeta, quiet bool) error {
@@ -590,7 +742,20 @@ func newPlayCommand(loop *bool, width *int, colorMode *string) *wcli.Command {
 			if len(ctx.Args) != 1 {
 				return fmt.Errorf("%w: 비디오 파일을 하나 지정하세요 (예: tdraw play clip.mp4)", errUsage)
 			}
-			return runPlay(ctx, *loop, *width, *colorMode)
+			cfg, _ := config.Load()
+			actualLoop := *loop
+			if !actualLoop && cfg.Play.Loop {
+				actualLoop = true
+			}
+			actualWidth := *width
+			if actualWidth <= 0 && cfg.Width > 0 {
+				actualWidth = cfg.Width
+			}
+			actualColor := *colorMode
+			if (actualColor == "" || actualColor == "truecolor") && cfg.Color != "" {
+				actualColor = cfg.Color
+			}
+			return runPlay(ctx, actualLoop, actualWidth, actualColor)
 		},
 	}
 	play.Flags().BoolVar(loop, "loop", "l", false, "스트림 끝에서 처음부터 반복 재생")

@@ -11,7 +11,8 @@
 ### 패키지 구조 및 책임 분리
 
 - **`github.com/wkqco33/tdraw` (루트)**: 외부에 노출되는 최상위 퍼사드(Facade) API. `Draw`, `DrawFile`, `PlayGIFFile`, `TermSize` 제공.
-- **`cmd/tdraw`**: CLI 엔트리포인트 (`wcli` 프레임워크 기반). 플래그 파싱, 표준 입력(`-`) 처리, 메타데이터 출력 제어, 서브커맨드(`ask`, `agent`, `ocr`, `index`, `find`, `play`).
+- **`cmd/tdraw`**: CLI 엔트리포인트 (`wcli` 프레임워크 기반). 플래그 파싱, 표준 입력(`-`) 처리, 메타데이터 출력 제어, 서브커맨드(`config`, `ask`, `agent`, `ocr`, `index`, `find`, `play`).
+- **`config`**: tdraw 설정 관리 (OS별 표준 디렉터리 기반 JSON 설정 로드/저장/조회).
 - **`render`**: Half-block 기반 텍스트 버퍼 렌더링 엔진. 성능 크리티컬한 핫루프이므로 메모리 할당을 최소화(1 allocs/op)하도록 설계됨.
 - **`imgutil`**: 이미지 로딩, GIF 누적 disposal 합성, 종횡비 유지 Bilinear 리사이즈.
 - **`pnm`**: Netpbm 계열(PBM/PGM/PPM, P1~P6) 이미지 표준 디코더. `image.RegisterFormat`을 통해 `image.Decode`와 연동.
