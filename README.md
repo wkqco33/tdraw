@@ -244,7 +244,7 @@ tdraw play -w 60 --color 256 video.mp4
 비디오 재생은 CGO 및 FFmpeg 라이브러리가 필요하다. **기본 릴리스 바이너리(`tdraw_*.tar.gz`) 및 `go install` 바이너리는 순수 Go(정적 바이너리)로 빌드되어 외부 의존성(FFmpeg, 특정 glibc 버전) 없이 모든 환경에서 독립적으로 실행되며, 비디오 재생 기능은 제외되어 있다.**
 
 비디오 재생 기능이 필요한 경우:
-1. **Linux 릴리스 바이너리**: GitHub Releases에서 제공하는 `tdraw-video_linux_*.tar.gz` 아티팩트를 다운로드하여 사용한다 (FFmpeg 6+ 런타임 필요).
+1. **Linux 릴리스 바이너리**: GitHub Releases에서 제공하는 `tdraw_video_linux_*.tar.gz` 아티팩트를 다운로드하여 사용한다 (FFmpeg 6+ 런타임 필요).
 2. **소스에서 직접 빌드**: 먼저 tcamviewer 코어 라이브러리를 빌드한 뒤 `task build:video`를 실행한다. `task build:video`는 로컬 tcamviewer 체크아웃을 go.work로 자동 연결한다(go.work는 커밋되지 않는다).
 
 ```bash

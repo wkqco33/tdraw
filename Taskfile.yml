@@ -105,7 +105,7 @@ tasks:
       - |
         task build:video
         cp {{.BIN}} {{.BIN}}-video
-        archive="{{.DISTDIR}}/{{.BIN}}-video_linux_$(go env GOARCH).tar.gz"
+        archive="{{.DISTDIR}}/{{.BIN}}_video_linux_$(go env GOARCH).tar.gz"
         tar -czf "$archive" {{.BIN}} {{.BIN}}-video
         rm -f {{.BIN}}-video
         (cd "{{.DISTDIR}}" && sha256sum "$(basename "$archive")" > "$(basename "$archive").sha256")

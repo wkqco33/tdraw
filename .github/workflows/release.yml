@@ -146,13 +146,13 @@ jobs:
           TCAMVIEWER_DIR: ./tcamviewer
         run: task build:video
 
-      - name: 패키징 (tdraw-video)
+      - name: 패키징 (tdraw_video)
         run: |
           mkdir -p dist
           cp tdraw tdraw-video
-          tar -czf "dist/tdraw-video_linux_${{ matrix.arch }}.tar.gz" tdraw tdraw-video
+          tar -czf "dist/tdraw_video_linux_${{ matrix.arch }}.tar.gz" tdraw tdraw-video
           rm -f tdraw-video
-          (cd dist && sha256sum "tdraw-video_linux_${{ matrix.arch }}.tar.gz" > "tdraw-video_linux_${{ matrix.arch }}.tar.gz.sha256")
+          (cd dist && sha256sum "tdraw_video_linux_${{ matrix.arch }}.tar.gz" > "tdraw_video_linux_${{ matrix.arch }}.tar.gz.sha256")
           ls -lh dist/
 
       - name: 아티팩트 업로드
