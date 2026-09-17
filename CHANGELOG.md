@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-17
+
 ### Changed
 - Linux 기본 릴리스 바이너리를 Pure Go(`CGO_ENABLED=0`) 정적 바이너리로 전환하여, FFmpeg 6.x 및 최신 glibc(2.38+) 의존성을 완전히 제거하고 Ubuntu 20.04/22.04 등 구버전 및 모든 Linux 배포판에서 100% 호환성 확보.
 - 비디오 재생(`tcamviewer`/FFmpeg) 기능이 포함된 Linux 바이너리는 별도 아티팩트(`tdraw-video_linux_*.tar.gz`)로 분리 배포.
