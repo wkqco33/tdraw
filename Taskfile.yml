@@ -21,9 +21,9 @@ tasks:
       - task: build
 
   build:
-    desc: 현재 플랫폼용 바이너리 빌드 (비디오 재생 미포함)
+    desc: 현재 플랫폼용 바이너리 빌드 (비디오 재생 미포함, 순수 Go)
     cmds:
-      - "{{.GO}} build {{.GOFLAGS}} -ldflags \"{{.LDFLAGS}}\" -o {{.BIN}} ./cmd/tdraw"
+      - "CGO_ENABLED=0 {{.GO}} build {{.GOFLAGS}} -ldflags \"{{.LDFLAGS}}\" -o {{.BIN}} ./cmd/tdraw"
 
   setup:video:
     desc: 비디오 빌드/테스트용 go.work 구성 (tcamviewer 체크아웃 필요, 기본 ../tcamviewer)
@@ -59,42 +59,12 @@ tasks:
       - "{{.GO}} vet ./..."
 
   release-plain:
-    desc: PPM용 darwin/windows 아카이브와 체크섬을 dist/ 에 생성 (순수 Go, 비디오 미포함)
-    deps: [clean-dist]
+    desc: release 태스크 별칭 (하위 호환용)
     cmds:
-      - mkdir -p {{.DISTDIR}}
-      - |
-        for platform in darwin/amd64 darwin/arm64 windows/amd64; do
-          os=${platform%/*}
-          arch=${platform#*/}
-          binary_name="{{.BIN}}"
-          archive_ext=".tar.gz"
-          if [ "$os" = "windows" ]; then
-            binary_name="{{.BIN}}.exe"
-            archive_ext=".zip"
-          fi
-
-          binary="{{.DISTDIR}}/$binary_name"
-          archive="{{.DISTDIR}}/{{.BIN}}_${os}_${arch}${archive_ext}"
-          echo "빌드: $archive"
-          GOOS=$os GOARCH=$arch {{.GO}} build {{.GOFLAGS}} -ldflags "{{.LDFLAGS}}" -o "$binary" ./cmd/tdraw
-
-          if [ "$os" = "windows" ]; then
-            zip -q -j "$archive" "$binary"
-            unzip -tq "$archive"
-          else
-            tar -czf "$archive" -C "{{.DISTDIR}}" "$binary_name"
-            tar -tzf "$archive" >/dev/null
-          fi
-
-          (cd "{{.DISTDIR}}" && sha256sum "$(basename "$archive")" > "$(basename "$archive").sha256")
-          rm -f "$binary"
-        done
-      - 'echo "완료: {{.DISTDIR}}/"'
-      - ls -lh {{.DISTDIR}}/
+      - task: release
 
   release:
-    desc: PPM용 플랫폼별 아카이브와 SHA-256 체크섬을 dist/ 에 생성 (linux는 비디오 미포함)
+    desc: PPM용 플랫폼별 기본 아카이브와 SHA-256 체크섬을 dist/ 에 생성 (순수 Go 정적 바이너리)
     deps: [clean-dist]
     cmds:
       - mkdir -p {{.DISTDIR}}
@@ -112,7 +82,7 @@ tasks:
           binary="{{.DISTDIR}}/$binary_name"
           archive="{{.DISTDIR}}/{{.BIN}}_${os}_${arch}${archive_ext}"
           echo "빌드: $archive"
-          GOOS=$os GOARCH=$arch {{.GO}} build {{.GOFLAGS}} -ldflags "{{.LDFLAGS}}" -o "$binary" ./cmd/tdraw
+          CGO_ENABLED=0 GOOS=$os GOARCH=$arch {{.GO}} build {{.GOFLAGS}} -ldflags "{{.LDFLAGS}}" -o "$binary" ./cmd/tdraw
 
           if [ "$os" = "windows" ]; then
             zip -q -j "$archive" "$binary"
@@ -127,6 +97,20 @@ tasks:
         done
       - 'echo "완료: {{.DISTDIR}}/"'
       - ls -lh {{.DISTDIR}}/
+
+  release:video:
+    desc: 비디오 재생(tcamviewer) 포함 Linux 아카이브 생성 (tcamviewer 코어 빌드 필요)
+    cmds:
+      - mkdir -p {{.DISTDIR}}
+      - |
+        task build:video
+        cp {{.BIN}} {{.BIN}}-video
+        archive="{{.DISTDIR}}/{{.BIN}}-video_linux_$(go env GOARCH).tar.gz"
+        tar -czf "$archive" {{.BIN}} {{.BIN}}-video
+        rm -f {{.BIN}}-video
+        (cd "{{.DISTDIR}}" && sha256sum "$(basename "$archive")" > "$(basename "$archive").sha256")
+        echo "완료: $archive"
+        ls -lh {{.DISTDIR}}/
 
   install:
     desc: "~/.local/bin 에 바이너리 설치 (Unix 전용)"

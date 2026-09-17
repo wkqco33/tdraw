@@ -17,4 +17,4 @@ import "errors"
 // ErrUnsupported는 비디오 재생 미지원 빌드(스텁)에서 Open이 반환하는 에러다.
 var ErrUnsupported = errors.New(
 	"이 빌드는 비디오 재생을 지원하지 않습니다. " +
-		"libtcamviewer 를 빌드한 뒤 'task build:video' 로 다시 빌드하세요")
+		"비디오 재생이 포함된 릴리스 바이너리(tdraw-video)를 사용하거나 'task build:video' 로 직접 빌드하세요")

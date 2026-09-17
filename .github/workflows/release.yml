@@ -87,7 +87,7 @@ jobs:
         run: task test:video
 
   build-linux-video:
-    name: Linux 바이너리 (비디오 포함, ${{ matrix.arch }})
+    name: Linux 비디오 확장 바이너리 (tcamviewer 포함, ${{ matrix.arch }})
     needs: [test, test-video]
     runs-on: ${{ matrix.runs-on }}
     strategy:
@@ -146,21 +146,23 @@ jobs:
           TCAMVIEWER_DIR: ./tcamviewer
         run: task build:video
 
-      - name: 패키징
+      - name: 패키징 (tdraw-video)
         run: |
           mkdir -p dist
-          tar -czf "dist/tdraw_linux_${{ matrix.arch }}.tar.gz" tdraw
-          (cd dist && sha256sum "tdraw_linux_${{ matrix.arch }}.tar.gz" > "tdraw_linux_${{ matrix.arch }}.tar.gz.sha256")
+          cp tdraw tdraw-video
+          tar -czf "dist/tdraw-video_linux_${{ matrix.arch }}.tar.gz" tdraw tdraw-video
+          rm -f tdraw-video
+          (cd dist && sha256sum "tdraw-video_linux_${{ matrix.arch }}.tar.gz" > "tdraw-video_linux_${{ matrix.arch }}.tar.gz.sha256")
           ls -lh dist/
 
       - name: 아티팩트 업로드
         uses: actions/upload-artifact@v4
         with:
-          name: dist-linux-${{ matrix.arch }}
+          name: dist-linux-video-${{ matrix.arch }}
           path: dist/*
 
-  build-plain:
-    name: 크로스 플랫폼 바이너리 (darwin/windows, 순수 Go)
+  build-default:
+    name: 크로스 플랫폼 바이너리 (Linux/macOS/Windows, 순수 Go)
     needs: [test]
     runs-on: ubuntu-latest
     steps:
@@ -183,18 +185,18 @@ jobs:
       - name: 의존성 다운로드
         run: go mod download
 
-      - name: darwin/windows 빌드
-        run: task release-plain
+      - name: 순수 Go 기본 바이너리 빌드
+        run: task release
 
       - name: 아티팩트 업로드
         uses: actions/upload-artifact@v4
         with:
-          name: dist-plain
+          name: dist-default
           path: dist/*
 
   release:
     name: GitHub Release 생성
-    needs: [build-linux-video, build-plain]
+    needs: [build-default, build-linux-video]
     runs-on: ubuntu-latest
     steps:
       - name: 아티팩트 다운로드

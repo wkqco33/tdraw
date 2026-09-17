@@ -737,7 +737,7 @@ func newPlayCommand(loop *bool, width *int, colorMode *string) *wcli.Command {
 		Short: "비디오를 터미널에서 재생",
 		Long: "MP4, MKV, AVI, WebM 등 FFmpeg이 지원하는 비디오 파일을 터미널에서 재생한다.\n" +
 			"비디오 재생은 tcamviewer 라이브러리와 함께 빌드된 바이너리에서만 동작한다\n" +
-			"(task build:video). 오디오는 출력되지 않는다.",
+			"(tdraw-video 릴리스 또는 task build:video). 오디오는 출력되지 않는다.",
 		Run: func(ctx *wcli.Context) error {
 			if len(ctx.Args) != 1 {
 				return fmt.Errorf("%w: 비디오 파일을 하나 지정하세요 (예: tdraw play clip.mp4)", errUsage)

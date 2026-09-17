@@ -185,3 +185,14 @@ func TestConfigSubcommands(t *testing.T) {
 		t.Fatalf("expected errFailed for invalid key get, got %v", err)
 	}
 }
+
+func TestPlayCommandExecution(t *testing.T) {
+	var loop bool
+	var width int
+	var color string
+	playCmd := newPlayCommand(&loop, &width, &color)
+	err := playCmd.Execute([]string{"dummy.mp4"})
+	if err == nil || !errors.Is(err, errFailed) {
+		t.Errorf("expected errFailed for play execution on non-existent/unsupported video, got %v", err)
+	}
+}
