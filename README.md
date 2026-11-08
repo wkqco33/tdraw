@@ -250,15 +250,19 @@ tdraw play -w 60 --color 256 video.mp4
 
 비디오 재생은 CGO 및 FFmpeg 라이브러리가 필요하다. **Linux 기본 빌드와 기본 릴리스 바이너리는 비디오 재생을 포함한다.** 기본 Linux 빌드에는 tcamviewer 코어 라이브러리와 FFmpeg 개발 라이브러리가 필요하며, 실행 시 FFmpeg 6+ 런타임이 필요하다. macOS/Windows 및 `go install` 바이너리는 순수 Go 빌드로 비디오 기능이 제외된다.
 
-Linux에서 순수 Go 바이너리가 필요한 경우 `task build:plain` 또는 `tdraw_plain_linux_*.tar.gz` 아카이브를 사용한다. 비디오 재생이 포함된 Linux 소스 빌드는 먼저 tcamviewer 코어 라이브러리를 빌드한 뒤 `task build`를 실행한다. 이 명령은 로컬 tcamviewer 체크아웃을 go.work로 자동 연결한다(go.work는 커밋되지 않는다). `task build:video`는 비디오 포함 빌드를 명시적으로 실행하는 별칭으로 유지된다.
+Linux에서 순수 Go 바이너리가 필요한 경우 `task build:plain` 또는 `tdraw_plain_linux_*.tar.gz` 아카이브를 사용한다. 비디오 재생 빌드는 Go 바인딩을 `go.mod`에 선언된 `github.com/wkqco33/tcamviewer` 모듈에서 가져오며, 별도 `go.work` 로컬 모듈 연결은 사용하지 않는다. 다만 CGo가 링크할 네이티브 `libtcamviewer` 코어와 FFmpeg 개발 라이브러리는 필요하다. 코어 라이브러리 위치는 `TCAMVIEWER_LIB_DIR`로 지정할 수 있으며 기본값은 `../tcamviewer/build`이다. `task build`는 Linux에서 이를 사용하고, `task build:video`는 비디오 포함 빌드를 명시적으로 실행한다.
 
 ```bash
-# 1. tcamviewer 코어 라이브러리 빌드 (../tcamviewer 위치)
+# 1. FFmpeg 8 호환 네이티브 코어 소스 체크아웃 및 빌드
+# Go 바인딩은 go.mod의 github.com/wkqco33/tcamviewer v0.2.1을 사용한다.
 git clone https://github.com/wkqco33/tcamviewer ../tcamviewer
-cd ../tcamviewer && task build:core
+cd ../tcamviewer
+git checkout 2feb4454874201044909ab9c639f301a3faec463
+git submodule update --init third_party/wcppcli
+task build:core
 
-# 2. 비디오 재생 포함 tdraw 빌드
-cd ../tdraw && task build:video
+# 2. Go 모듈을 사용해 비디오 재생 포함 tdraw 빌드
+cd ../tdraw && TCAMVIEWER_LIB_DIR=../tcamviewer/build task build:video
 ```
 
 비디오 재생이 빠진 기본 바이너리에서 `tdraw play` 실행 시 안내 메시지가 출력된다.

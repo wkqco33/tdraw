@@ -58,7 +58,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: wkqco33/tcamviewer
-          ref: v0.2.1
+          ref: 2feb4454874201044909ab9c639f301a3faec463
           path: tcamviewer
           submodules: recursive  # third_party/wcppcli 필요
 
@@ -89,7 +89,7 @@ jobs:
 
       - name: Linux 기본 빌드 및 비디오 연동 테스트
         env:
-          TCAMVIEWER_DIR: ./tcamviewer
+          TCAMVIEWER_LIB_DIR: ./tcamviewer/build
         run: |
           task build
           task test:video
