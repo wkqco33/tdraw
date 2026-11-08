@@ -7,6 +7,19 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-08
+
+### Added
+- Linux 기본 빌드 및 릴리스 바이너리에 비디오 재생 기능 포함.
+- 순수 Go Linux 빌드 대안(`task build:plain`, `_plain` 아카이브) 제공.
+
+### Changed
+- tcamviewer Go 바인딩을 `go.mod`의 공개 Go 모듈에서 가져오고, 네이티브 코어 경로를 `TCAMVIEWER_LIB_DIR`로 분리.
+- FFmpeg 8 호환 네이티브 코어 revision을 CI와 릴리스 빌드에 고정.
+
+### Fixed
+- FFmpeg 8에서 비디오 회전 메타데이터 조회가 실패하던 문제.
+
 ## [0.5.1] - 2026-09-17
 
 ### Changed
