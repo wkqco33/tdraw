@@ -20,6 +20,7 @@ go install github.com/wkqco33/tdraw/cmd/tdraw@latest
 # 소스에서 클론
 git clone https://github.com/wkqco33/tdraw
 cd tdraw
+# Linux에서 비디오 포함 기본 빌드에는 tcamviewer 코어 및 FFmpeg 개발 라이브러리가 필요하다.
 task build
 ```
 
@@ -27,20 +28,26 @@ task build
 
 | 태스크 | 설명 |
 | ------ | ---- |
-| `task build` | 현재 플랫폼용 바이너리 빌드 (비디오 재생 미포함) |
+| `task build` | 현재 플랫폼용 기본 빌드 (Linux는 비디오 재생 포함) |
+| `task build:plain` | 순수 Go 빌드 (비디오 재생 미포함) |
 | `task build:video` | 비디오 재생(tcamviewer) 포함 빌드 |
 | `task test` | 테스트 실행 |
-| `task release` | PPM용 플랫폼별 아카이브와 SHA-256 체크섬을 `dist/` 에 생성 |
+| `task release` | 순수 Go 플랫폼별 아카이브와 SHA-256 체크섬을 `dist/` 에 생성 |
+| `task release:video` | Linux 기본 비디오 아카이브와 호환용 `_video` 아카이브 생성 |
 | `task install` | `~/.local/bin` 에 설치 (Unix 전용) |
 | `task clean` | 빌드 결과물 삭제 |
 
-`task release`는 PPM 패키지 매니저에서 자동 인식할 수 있는 다음 릴리스 자산을 생성한다.
+릴리스의 기본 Linux 아카이브는 비디오 재생을 포함하며, `tdraw_linux_<arch>.tar.gz` 이름으로 제공된다. `task release`가 생성하는 순수 Go Linux 대체 아카이브에는 `_plain`이 붙는다. macOS와 Windows 릴리스는 순수 Go 빌드다.
 
 ```text
 tdraw_linux_amd64.tar.gz
 tdraw_linux_amd64.tar.gz.sha256
 tdraw_linux_arm64.tar.gz
 tdraw_linux_arm64.tar.gz.sha256
+tdraw_plain_linux_amd64.tar.gz
+tdraw_plain_linux_amd64.tar.gz.sha256
+tdraw_plain_linux_arm64.tar.gz
+tdraw_plain_linux_arm64.tar.gz.sha256
 tdraw_darwin_amd64.tar.gz
 tdraw_darwin_amd64.tar.gz.sha256
 tdraw_darwin_arm64.tar.gz
@@ -49,7 +56,7 @@ tdraw_windows_amd64.zip
 tdraw_windows_amd64.zip.sha256
 ```
 
-GitHub Release에 `dist/`의 아카이브와 체크섬 파일을 함께 업로드하면 PPM으로 설치할 수 있다.
+GitHub Actions 릴리스는 비디오 포함 Linux 기본 아카이브와 순수 Go 대체 아카이브를 함께 만든다. 수동으로 생성할 때는 `task release`와 Linux에서 `task release:video`를 실행한 뒤 `dist/`의 아카이브 및 체크섬 파일을 GitHub Release에 업로드하면 PPM으로 설치할 수 있다.
 
 ## CLI 사용법
 
@@ -241,11 +248,9 @@ tdraw play --loop video.mp4
 tdraw play -w 60 --color 256 video.mp4
 ```
 
-비디오 재생은 CGO 및 FFmpeg 라이브러리가 필요하다. **기본 릴리스 바이너리(`tdraw_*.tar.gz`) 및 `go install` 바이너리는 순수 Go(정적 바이너리)로 빌드되어 외부 의존성(FFmpeg, 특정 glibc 버전) 없이 모든 환경에서 독립적으로 실행되며, 비디오 재생 기능은 제외되어 있다.**
+비디오 재생은 CGO 및 FFmpeg 라이브러리가 필요하다. **Linux 기본 빌드와 기본 릴리스 바이너리는 비디오 재생을 포함한다.** 기본 Linux 빌드에는 tcamviewer 코어 라이브러리와 FFmpeg 개발 라이브러리가 필요하며, 실행 시 FFmpeg 6+ 런타임이 필요하다. macOS/Windows 및 `go install` 바이너리는 순수 Go 빌드로 비디오 기능이 제외된다.
 
-비디오 재생 기능이 필요한 경우:
-1. **Linux 릴리스 바이너리**: GitHub Releases에서 제공하는 `tdraw_video_linux_*.tar.gz` 아티팩트를 다운로드하여 사용한다 (FFmpeg 6+ 런타임 필요).
-2. **소스에서 직접 빌드**: 먼저 tcamviewer 코어 라이브러리를 빌드한 뒤 `task build:video`를 실행한다. `task build:video`는 로컬 tcamviewer 체크아웃을 go.work로 자동 연결한다(go.work는 커밋되지 않는다).
+Linux에서 순수 Go 바이너리가 필요한 경우 `task build:plain` 또는 `tdraw_plain_linux_*.tar.gz` 아카이브를 사용한다. 비디오 재생이 포함된 Linux 소스 빌드는 먼저 tcamviewer 코어 라이브러리를 빌드한 뒤 `task build`를 실행한다. 이 명령은 로컬 tcamviewer 체크아웃을 go.work로 자동 연결한다(go.work는 커밋되지 않는다). `task build:video`는 비디오 포함 빌드를 명시적으로 실행하는 별칭으로 유지된다.
 
 ```bash
 # 1. tcamviewer 코어 라이브러리 빌드 (../tcamviewer 위치)

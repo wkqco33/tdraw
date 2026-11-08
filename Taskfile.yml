@@ -21,7 +21,17 @@ tasks:
       - task: build
 
   build:
-    desc: 현재 플랫폼용 바이너리 빌드 (비디오 재생 미포함, 순수 Go)
+    desc: 현재 플랫폼용 기본 바이너리 빌드 (Linux는 비디오 재생 포함)
+    cmds:
+      - |
+        if [ "$(go env GOOS)" = "linux" ]; then
+          task build:video
+        else
+          task build:plain
+        fi
+
+  build:plain:
+    desc: 현재 플랫폼용 순수 Go 바이너리 빌드 (비디오 재생 미포함)
     cmds:
       - "CGO_ENABLED=0 {{.GO}} build {{.GOFLAGS}} -ldflags \"{{.LDFLAGS}}\" -o {{.BIN}} ./cmd/tdraw"
 
@@ -35,7 +45,7 @@ tasks:
     desc: 비디오 재생(tcamviewer) 포함 빌드 — tcamviewer 코어가 빌드되어 있어야 한다
     deps: [setup:video]
     cmds:
-      - "{{.GO}} build -tags tcamviewer {{.GOFLAGS}} -ldflags \"{{.LDFLAGS}}\" -o {{.BIN}} ./cmd/tdraw"
+      - "CGO_ENABLED=1 {{.GO}} build -tags tcamviewer {{.GOFLAGS}} -ldflags \"{{.LDFLAGS}}\" -o {{.BIN}} ./cmd/tdraw"
 
   test:
     desc: 테스트 실행
@@ -46,7 +56,7 @@ tasks:
     desc: 비디오 재생(tcamviewer 연동) 포함 테스트 실행
     deps: [setup:video]
     cmds:
-      - "{{.GO}} test -tags tcamviewer ./... -v"
+      - "CGO_ENABLED=1 {{.GO}} test -tags tcamviewer ./... -v"
 
   fmt:
     desc: 코드 포맷
@@ -64,7 +74,7 @@ tasks:
       - task: release
 
   release:
-    desc: PPM용 플랫폼별 기본 아카이브와 SHA-256 체크섬을 dist/ 에 생성 (순수 Go 정적 바이너리)
+    desc: 플랫폼별 순수 Go 아카이브와 SHA-256 체크섬을 dist/ 에 생성 (Linux 파일명에 _plain 표시)
     deps: [clean-dist]
     cmds:
       - mkdir -p {{.DISTDIR}}
@@ -80,7 +90,11 @@ tasks:
           fi
 
           binary="{{.DISTDIR}}/$binary_name"
-          archive="{{.DISTDIR}}/{{.BIN}}_${os}_${arch}${archive_ext}"
+          suffix=""
+          if [ "$os" = "linux" ]; then
+            suffix="_plain"
+          fi
+          archive="{{.DISTDIR}}/{{.BIN}}${suffix}_${os}_${arch}${archive_ext}"
           echo "빌드: $archive"
           CGO_ENABLED=0 GOOS=$os GOARCH=$arch {{.GO}} build {{.GOFLAGS}} -ldflags "{{.LDFLAGS}}" -o "$binary" ./cmd/tdraw
 
@@ -99,17 +113,22 @@ tasks:
       - ls -lh {{.DISTDIR}}/
 
   release:video:
-    desc: 비디오 재생(tcamviewer) 포함 Linux 아카이브 생성 (tcamviewer 코어 빌드 필요)
+    desc: Linux 기본 비디오 재생 아카이브와 호환용 _video 아카이브 생성 (tcamviewer 코어 빌드 필요)
     cmds:
       - mkdir -p {{.DISTDIR}}
       - |
+        test "$(go env GOOS)" = "linux"
         task build:video
+        arch=$(go env GOARCH)
+        archive="{{.DISTDIR}}/{{.BIN}}_linux_${arch}.tar.gz"
+        legacy_archive="{{.DISTDIR}}/{{.BIN}}_video_linux_${arch}.tar.gz"
+        tar -czf "$archive" {{.BIN}}
         cp {{.BIN}} {{.BIN}}-video
-        archive="{{.DISTDIR}}/{{.BIN}}_video_linux_$(go env GOARCH).tar.gz"
-        tar -czf "$archive" {{.BIN}} {{.BIN}}-video
+        tar -czf "$legacy_archive" {{.BIN}} {{.BIN}}-video
         rm -f {{.BIN}}-video
         (cd "{{.DISTDIR}}" && sha256sum "$(basename "$archive")" > "$(basename "$archive").sha256")
-        echo "완료: $archive"
+        (cd "{{.DISTDIR}}" && sha256sum "$(basename "$legacy_archive")" > "$(basename "$legacy_archive").sha256")
+        echo "완료: $archive, $legacy_archive"
         ls -lh {{.DISTDIR}}/
 
   install:

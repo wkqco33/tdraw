@@ -35,7 +35,7 @@ jobs:
         run: go mod download
 
       - name: 빌드
-        run: task build
+        run: task build:plain
 
       - name: 테스트
         run: task test
@@ -87,7 +87,9 @@ jobs:
           cmake -S tcamviewer -B tcamviewer/build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
           cmake --build tcamviewer/build --parallel
 
-      - name: 비디오 연동 테스트
+      - name: Linux 기본 빌드 및 비디오 연동 테스트
         env:
           TCAMVIEWER_DIR: ./tcamviewer
-        run: task test:video
+        run: |
+          task build
+          task test:video
