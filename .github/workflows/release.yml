@@ -10,7 +10,7 @@ permissions:
 
 env:
   # FFmpeg 8 호환 네이티브 코어 revision. Go 바인딩 버전은 go.mod에서 관리한다.
-  TCAMVIEWER_REF: 2feb4454874201044909ab9c639f301a3faec463
+  TCAMVIEWER_REF: 65d643f345a057d5049b103fb8da2f1a5e706845
 
 jobs:
   test:

@@ -257,7 +257,7 @@ Linux에서 순수 Go 바이너리가 필요한 경우 `task build:plain` 또는
 # Go 바인딩은 go.mod의 github.com/wkqco33/tcamviewer v0.2.1을 사용한다.
 git clone https://github.com/wkqco33/tcamviewer ../tcamviewer
 cd ../tcamviewer
-git checkout 2feb4454874201044909ab9c639f301a3faec463
+git checkout 65d643f345a057d5049b103fb8da2f1a5e706845
 git submodule update --init third_party/wcppcli
 task build:core
 

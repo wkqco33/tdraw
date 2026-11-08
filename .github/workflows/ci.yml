@@ -58,7 +58,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: wkqco33/tcamviewer
-          ref: 2feb4454874201044909ab9c639f301a3faec463
+          ref: 65d643f345a057d5049b103fb8da2f1a5e706845
           path: tcamviewer
           submodules: recursive  # third_party/wcppcli 필요
 
