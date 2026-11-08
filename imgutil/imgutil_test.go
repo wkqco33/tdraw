@@ -1,10 +1,13 @@
 package imgutil
 
 import (
+	"context"
+	"errors"
 	"image"
 	"image/color"
 	"image/gif"
 	"image/png"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -143,6 +146,50 @@ func TestLoadConfig_FileNotFound(t *testing.T) {
 	if err == nil {
 		t.Error("없는 파일에 대해 에러가 발생해야 함")
 	}
+}
+
+func TestLoadReaderContextReturnsOnCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	reader := &blockingReader{
+		release: make(chan struct{}),
+		started: make(chan struct{}, 1),
+	}
+	result := make(chan error, 1)
+
+	go func() {
+		_, err := LoadReaderContext(ctx, reader, "stdin")
+		result <- err
+	}()
+
+	select {
+	case <-reader.started:
+	case <-time.After(time.Second):
+		t.Fatal("decoder did not start reading")
+	}
+	cancel()
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected context.Canceled, got %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("LoadReaderContext did not return after cancellation")
+	}
+	close(reader.release)
+}
+
+type blockingReader struct {
+	release chan struct{}
+	started chan struct{}
+}
+
+func (r *blockingReader) Read([]byte) (int, error) {
+	select {
+	case r.started <- struct{}{}:
+	default:
+	}
+	<-r.release
+	return 0, io.EOF
 }
 
 func TestLoadReader_PNG(t *testing.T) {

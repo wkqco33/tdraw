@@ -1,6 +1,7 @@
 package imgutil
 
 import (
+	"context"
 	"fmt"
 	"image"
 	"image/gif"
@@ -95,6 +96,49 @@ func LoadReader(r io.Reader, name string) (*ImageInfo, error) {
 	}, nil
 }
 
+// LoadContext는 이미지 파일 또는 표준 입력을 읽는다. stdin 디코딩은 ctx 취소 시 호출자에게 즉시 반환한다.
+// stdin 디코더는 취소 불가능한 Read에서 대기할 수 있으므로 백그라운드에서 실행한다.
+func LoadContext(ctx context.Context, path string) (*ImageInfo, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	if path != "-" {
+		return Load(path)
+	}
+	return LoadReaderContext(ctx, os.Stdin, "<stdin>")
+}
+
+// LoadReaderContext는 io.Reader에서 이미지를 읽고 ctx 취소 시 반환한다.
+func LoadReaderContext(ctx context.Context, r io.Reader, name string) (*ImageInfo, error) {
+	return runWithContext(ctx, func() (*ImageInfo, error) {
+		return LoadReader(r, name)
+	})
+}
+
+func runWithContext[T any](ctx context.Context, decode func() (T, error)) (T, error) {
+	type result struct {
+		value T
+		err   error
+	}
+	if err := ctx.Err(); err != nil {
+		var zero T
+		return zero, err
+	}
+	ch := make(chan result, 1)
+	go func() {
+		value, err := decode()
+		ch <- result{value: value, err: err}
+	}()
+
+	select {
+	case res := <-ch:
+		return res.value, res.err
+	case <-ctx.Done():
+		var zero T
+		return zero, ctx.Err()
+	}
+}
+
 // GIFAnim은 합성 완료된 GIF 애니메이션 프레임들을 담는다.
 type GIFAnim struct {
 	Frames []image.Image   // 각 프레임을 전체 캔버스 기준으로 합성한 완성본
@@ -117,6 +161,24 @@ func LoadGIF(path string) (*GIFAnim, error) {
 		r = f
 	}
 	return LoadGIFReader(r)
+}
+
+// LoadGIFContext는 GIF 파일 또는 표준 입력을 읽는다. stdin 디코딩은 ctx 취소 시 호출자에게 즉시 반환한다.
+func LoadGIFContext(ctx context.Context, path string) (*GIFAnim, error) {
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	if path != "-" {
+		return LoadGIF(path)
+	}
+	return LoadGIFReaderContext(ctx, os.Stdin)
+}
+
+// LoadGIFReaderContext는 io.Reader에서 GIF를 읽고 ctx 취소 시 반환한다.
+func LoadGIFReaderContext(ctx context.Context, r io.Reader) (*GIFAnim, error) {
+	return runWithContext(ctx, func() (*GIFAnim, error) {
+		return LoadGIFReader(r)
+	})
 }
 
 // LoadGIFReader는 io.Reader에서 GIF 프레임들을 읽어 합성한다.

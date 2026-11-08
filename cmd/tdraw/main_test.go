@@ -8,6 +8,17 @@ import (
 	"github.com/wkqco33/tdraw/render"
 )
 
+func TestValidateImageInputsRejectsInteractiveStdin(t *testing.T) {
+	err := validateImageInputs([]string{"-"}, true)
+	if err == nil || !errors.Is(err, errUsage) {
+		t.Fatalf("expected errUsage for interactive stdin, got %v", err)
+	}
+
+	if err := validateImageInputs([]string{"image.png", "-"}, false); err != nil {
+		t.Fatalf("piped stdin should be accepted: %v", err)
+	}
+}
+
 func TestParseColorMode(t *testing.T) {
 	tests := []struct {
 		input string

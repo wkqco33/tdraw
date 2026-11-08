@@ -41,8 +41,9 @@ const metaReserveRows = 9
 // errFailed는 처리 실패를 알리는 센티넬 에러다. SilenceErrors로 자동 출력이
 // 억제되므로 메시지는 호출부에서 직접 출력하고, main은 종료 코드 판정에만 사용한다.
 var (
-	errFailed = errors.New("처리 실패")
-	errUsage  = errors.New("사용법 오류")
+	errFailed      = errors.New("처리 실패")
+	errUsage       = errors.New("사용법 오류")
+	errInterrupted = errors.New("사용자 중단")
 )
 
 func main() {
@@ -123,6 +124,9 @@ func main() {
 	root.AddCommand(newPlayCommand(&playLoop, &playWidth, &playColor))
 
 	if err := root.Execute(os.Args[1:]); err != nil {
+		if errors.Is(err, errInterrupted) {
+			os.Exit(130)
+		}
 		if errors.Is(err, errUsage) {
 			os.Exit(2)
 		}
@@ -506,6 +510,10 @@ func run(ctx *wcli.Context, width int, colorMode string, noMeta, quiet bool) err
 		rich.Fprintln(os.Stderr, "[red]이미지 파일을 지정하세요 (도움말: tdraw -h)[/red]")
 		return errUsage
 	}
+	if err := validateImageInputs(args, isTTY(os.Stdin)); err != nil {
+		rich.Fprintln(os.Stderr, "[red]오류:[/red] %s", err.Error())
+		return err
+	}
 
 	mode := parseColorMode(colorMode)
 
@@ -528,6 +536,9 @@ func run(ctx *wcli.Context, width int, colorMode string, noMeta, quiet bool) err
 			fmt.Println()
 		}
 		if err := showImage(sigCtx, path, targetW, targetH, mode, noMeta, quiet); err != nil {
+			if sigCtx.Err() != nil {
+				return errInterrupted
+			}
 			displayName := filepath.Base(path)
 			if path == "-" {
 				displayName = "stdin"
@@ -536,12 +547,23 @@ func run(ctx *wcli.Context, width int, colorMode string, noMeta, quiet bool) err
 			failed = true
 		}
 		if sigCtx.Err() != nil {
-			break // Ctrl+C로 중단됨
+			return errInterrupted
 		}
 	}
 
 	if failed {
 		return errFailed
+	}
+	return nil
+}
+
+func validateImageInputs(args []string, stdinIsTTY bool) error {
+	if stdinIsTTY {
+		for _, path := range args {
+			if path == "-" {
+				return fmt.Errorf("%w: stdin이 터미널입니다. 파이프 또는 리다이렉션으로 이미지 데이터를 전달하세요", errUsage)
+			}
+		}
 	}
 	return nil
 }
@@ -565,7 +587,7 @@ func showImage(ctx context.Context, path string, targetW, targetH int, mode rend
 		sp.Start("이미지 로딩 중")
 	}
 	t0 := time.Now()
-	info, err := imgutil.Load(path)
+	info, err := imgutil.LoadContext(ctx, path)
 	if err != nil {
 		if sp != nil {
 			sp.Stop("")
@@ -581,6 +603,9 @@ func showImage(ctx context.Context, path string, targetW, targetH int, mode rend
 	resized := imgutil.Resize(info.Image, targetW, targetH)
 	if sp != nil {
 		sp.Stop("")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	rb := resized.Bounds()
@@ -609,7 +634,7 @@ func showGIF(ctx context.Context, path string, targetW, targetH int, mode render
 		sp.Start("GIF 디코딩 중")
 	}
 	t0 := time.Now()
-	anim, err := imgutil.LoadGIF(path)
+	anim, err := imgutil.LoadGIFContext(ctx, path)
 	if err != nil {
 		if sp != nil {
 			sp.Stop("")
@@ -630,6 +655,9 @@ func showGIF(ctx context.Context, path string, targetW, targetH int, mode render
 	tty := !quiet && isTTY(os.Stderr)
 	t1 := time.Now()
 	for i, f := range anim.Frames {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		frames[i] = imgutil.Resize(f, targetW, targetH)
 		if tty {
 			fmt.Fprint(os.Stderr, "\r"+rich.Sprint("[magenta]프레임 처리[/magenta] %s", pb.Render(i+1)))
