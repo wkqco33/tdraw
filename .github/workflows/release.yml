@@ -28,10 +28,10 @@ jobs:
           cache: true
 
       - name: Task 설치
-        uses: arduino/setup-task@v2
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@v3.54.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: 의존성 다운로드
         run: go mod download
@@ -68,10 +68,10 @@ jobs:
           cache: true
 
       - name: Task 설치
-        uses: arduino/setup-task@v2
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@v3.54.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: 의존성 다운로드
         run: go mod download
@@ -124,10 +124,10 @@ jobs:
           cache: true
 
       - name: Task 설치
-        uses: arduino/setup-task@v2
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@v3.54.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: 의존성 다운로드
         run: go mod download
@@ -179,10 +179,10 @@ jobs:
           cache: true
 
       - name: Task 설치
-        uses: arduino/setup-task@v2
-        with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@v3.54.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: 의존성 다운로드
         run: go mod download
