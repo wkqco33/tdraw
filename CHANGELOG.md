@@ -7,6 +7,8 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-09
+
 ### Added
 - `task build:video:portable`: Docker(Ubuntu 20.04) 안에서 정적 FFmpeg와 tcamviewer 코어를 빌드해 glibc 2.29 이상(Ubuntu 20.04+/Debian 11+)에서 동작하는 단일 바이너리를 생성. FFmpeg 런타임 의존 없음.
 
