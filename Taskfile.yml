@@ -13,6 +13,10 @@ vars:
   BINDIR:
     sh: echo "${HOME}/.local/bin"
   PLATFORMS: linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
+  # 낮은 glibc(Ubuntu 20.04+)용 컨테이너 빌드 이미지
+  PORTABLE_IMAGE: tdraw-portable:20.04
+  PORTABLE_GO_VERSION: '1.27.1'
+  PORTABLE_DIR: dist/portable
 
 tasks:
   default:
@@ -46,6 +50,18 @@ tasks:
           echo "네이티브 코어를 빌드한 뒤 TCAMVIEWER_LIB_DIR로 경로를 지정하세요." >&2
           exit 1
         fi
+        # 코어 .so가 요구하는 libav* 버전이 이 시스템에 있는지 확인한다.
+        # 다른 FFmpeg 메이저로 빌드된 코어는 빌드에 성공하고 실행 시에만
+        # 실패하므로 여기서 먼저 걸러낸다.
+        if [ -f "$lib_dir/libtcamviewer.so" ] && command -v ldd >/dev/null 2>&1; then
+          missing="$(ldd "$lib_dir/libtcamviewer.so" 2>/dev/null | awk '/not found/ {print $1}' | tr '\n' ' ')"
+          if [ -n "$missing" ]; then
+            echo "libtcamviewer.so가 이 시스템에 없는 라이브러리를 요구합니다: $missing" >&2
+            echo "시스템 FFmpeg 개발 라이브러리로 코어를 다시 빌드하세요" >&2
+            echo "  cd ../tcamviewer && cmake -B build -S . && cmake --build build --target tcamviewer" >&2
+            exit 1
+          fi
+        fi
 
   build:video:
     desc: pkg.go.dev tcamviewer 모듈과 네이티브 코어로 비디오 포함 빌드
@@ -56,6 +72,25 @@ tasks:
         export GOWORK=off CGO_ENABLED=1
         export CGO_LDFLAGS="${CGO_LDFLAGS:+$CGO_LDFLAGS }-L${lib_dir} -Wl,-rpath,${lib_dir}"
         {{.GO}} build -tags tcamviewer {{.GOFLAGS}} -ldflags "{{.LDFLAGS}}" -o {{.BIN}} ./cmd/tdraw
+
+  build:video:portable:
+    desc: 낮은 glibc(Ubuntu 20.04+/Debian 11+)용 비디오 빌드. 컨테이너에서 정적 FFmpeg + 코어를 링크해 런타임 FFmpeg 없이 동작하는 단일 바이너리를 만든다
+    cmds:
+      - >-
+        docker build --build-arg GO_VERSION={{.PORTABLE_GO_VERSION}}
+        -t {{.PORTABLE_IMAGE}} -f docker/portable.Dockerfile docker
+      - |
+        core_dir="$(cd "${TCAMVIEWER_DIR:-../tcamviewer}" && pwd)"
+        docker run --rm \
+          -v "$PWD":/w/tdraw \
+          -v "$core_dir":/w/tcamviewer \
+          -v tdraw-portable-ffmpeg:/w/ffmpeg \
+          -v tdraw-portable-gomod:/root/go \
+          -e VERSION={{.VERSION}} \
+          -e HOST_UID=$(id -u) -e HOST_GID=$(id -g) \
+          {{.PORTABLE_IMAGE}} bash /w/tdraw/scripts/build_portable.sh
+        (cd {{.PORTABLE_DIR}} && sha256sum tdraw > tdraw.sha256)
+        ls -lh {{.PORTABLE_DIR}}/
 
   test:
     desc: 테스트 실행

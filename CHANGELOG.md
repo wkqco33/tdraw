@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+### Added
+- `task build:video:portable`: Docker(Ubuntu 20.04) 안에서 정적 FFmpeg와 tcamviewer 코어를 빌드해 glibc 2.29 이상(Ubuntu 20.04+/Debian 11+)에서 동작하는 단일 바이너리를 생성. FFmpeg 런타임 의존 없음.
+
+### Changed
+- FFmpeg 6.1(Ubuntu 24.04) 환경에서도 비디오 재생이 동작하도록 네이티브 코어 빌드 절차를 시스템 FFmpeg 기준으로 정리. 소스의 버전 가드로 FFmpeg 6/7/8을 모두 지원하며, 코어는 빌드 머신의 FFmpeg 개발 라이브러리로 빌드해야 한다.
+
+### Fixed
+- `task build:video`: `libtcamviewer.so`가 시스템에 없는 `libav*` 버전을 요구할 때 빌드 단계에서 감지해 재빌드 방법을 안내.
+
 ## [0.6.0] - 2026-11-08
 
 ### Added

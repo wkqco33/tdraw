@@ -31,6 +31,7 @@ task build
 | `task build` | 현재 플랫폼용 기본 빌드 (Linux는 비디오 재생 포함) |
 | `task build:plain` | 순수 Go 빌드 (비디오 재생 미포함) |
 | `task build:video` | 비디오 재생(tcamviewer) 포함 빌드 |
+| `task build:video:portable` | 낮은 glibc(Ubuntu 20.04+/Debian 11+)용 자체 포함 비디오 빌드 (Docker) |
 | `task test` | 테스트 실행 |
 | `task release` | 순수 Go 플랫폼별 아카이브와 SHA-256 체크섬을 `dist/` 에 생성 |
 | `task release:video` | Linux 기본 비디오 아카이브와 호환용 `_video` 아카이브 생성 |
@@ -253,7 +254,7 @@ tdraw play -w 60 --color 256 video.mp4
 Linux에서 순수 Go 바이너리가 필요한 경우 `task build:plain` 또는 `tdraw_plain_linux_*.tar.gz` 아카이브를 사용한다. 비디오 재생 빌드는 Go 바인딩을 `go.mod`에 선언된 `github.com/wkqco33/tcamviewer` 모듈에서 가져오며, 별도 `go.work` 로컬 모듈 연결은 사용하지 않는다. 다만 CGo가 링크할 네이티브 `libtcamviewer` 코어와 FFmpeg 개발 라이브러리는 필요하다. 코어 라이브러리 위치는 `TCAMVIEWER_LIB_DIR`로 지정할 수 있으며 기본값은 `../tcamviewer/build`이다. `task build`는 Linux에서 이를 사용하고, `task build:video`는 비디오 포함 빌드를 명시적으로 실행한다.
 
 ```bash
-# 1. FFmpeg 8 호환 네이티브 코어 소스 체크아웃 및 빌드
+# 1. 네이티브 코어 소스 체크아웃 및 빌드 (시스템 FFmpeg 개발 라이브러리 사용)
 # Go 바인딩은 go.mod의 github.com/wkqco33/tcamviewer v0.2.1을 사용한다.
 git clone https://github.com/wkqco33/tcamviewer ../tcamviewer
 cd ../tcamviewer
@@ -264,6 +265,25 @@ task build:core
 # 2. Go 모듈을 사용해 비디오 재생 포함 tdraw 빌드
 cd ../tdraw && TCAMVIEWER_LIB_DIR=../tcamviewer/build task build:video
 ```
+
+코어는 반드시 빌드 머신에 설치된 FFmpeg 개발 라이브러리로 빌드한다(6.1 이상, 소스에 버전 가드가 있어 FFmpeg 6/7/8 모두 지원). 다른 FFmpeg 메이저로 빌드된 `libtcamviewer.so`를 그대로 쓰면 링크는 되지만 실행 시 `libavcodec.so.XX`를 찾지 못해 `tdraw play`가 실패한다. `task build:video`는 이 불일치를 미리 감지해 재빌드 명령을 안내한다.
+
+#### 낮은 OS용 자체 포함 빌드
+
+동적 FFmpeg를 링크하면 `libavcodec.so` 메이저가 배포판마다 달라지고(20.04/22.04=58, 24.04=60) 24.04에서 빌드하면 glibc 2.38 이상이 필요해, 한 바이너리로 여러 배포판을 지원할 수 없다. `task build:video:portable`은 Ubuntu 20.04 컨테이너 안에서 정적 FFmpeg와 코어를 빌드해 FFmpeg 런타임 의존이 없는 단일 바이너리를 만든다.
+
+```bash
+# Docker 필요. 결과물: dist/portable/tdraw (+ tdraw.sha256)
+task build:video:portable
+
+# tcamviewer 클론 위치를 직접 지정할 때
+TCAMVIEWER_DIR=/path/to/tcamviewer task build:video:portable
+```
+
+- 베이스라인: glibc 2.29 심볼까지만 사용하므로 Ubuntu 20.04+, Debian 11+ 등에서 동작한다.
+- 런타임 의존: `libc`, `libstdc++`, `libm`, `libgcc_s` 정도만 필요하고 FFmpeg 설치가 필요 없다.
+- 포함 코덱: H.264/HEVC/MPEG-2/MPEG-4/VP8/VP9/AV1/Theora/WMV/prores/FFV1 등과 MP4/MKV/AVI/MPEG-TS/FLV/WebM 디멀서. RTSP는 TLS 없이 지원하고 `/dev/video`(v4l2) 캡처는 지원하지 않는다.
+- 컨테이너 이미지와 FFmpeg·Go 모듈 캐시는 Docker 볼륨(`tdraw-portable-ffmpeg`, `tdraw-portable-gomod`)에 남아 재빌드가 빠르다. 베이스 OS를 바꾸려면 `docker/portable.Dockerfile`의 `UBUNTU_TAG` 인자를 조정한다.
 
 비디오 재생이 빠진 기본 바이너리에서 `tdraw play` 실행 시 안내 메시지가 출력된다.
 
